@@ -19,11 +19,7 @@ A simple desktop application to fetch and display book and edition data from the
 
 1.  **Clone the repository (or download the files):**
     ```bash
-<<<<<<< HEAD
     git clone https://github.com/mlitz/Librarian-Assistant.git
-=======
-    git clone https://github.com/mlitz/Librarian-Assistant.git
->>>>>>> e2fb074c27b4584193cca14520e78102fb1306c7
     cd Hardcover-Librarian
     ```
 2.  **Install dependencies:**
@@ -35,11 +31,7 @@ A simple desktop application to fetch and display book and edition data from the
 
 1.  **Run the script:**
     ```bash
-<<<<<<< HEAD
     python Librarian-Assistant.py
-=======
-    python Librarian-Assistant.py
->>>>>>> e2fb074c27b4584193cca14520e78102fb1306c7
     ```
 2.  **Enter your Hardcover Bearer Token** in the first input field. The token will be saved (obfuscated) locally for future use.
 3.  **Enter the Hardcover Book ID** you will want to look this up.
