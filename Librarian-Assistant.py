@@ -39,21 +39,20 @@ COLOR_INFO_FG = "#FFCC66"
 PRIMARY_OUTPUT_FONT_FAMILY = "Consolas"  # Font for primary text output areas
 LINK_LABEL_FONT_FAMILY = "Segoe UI"     # Font for UI labels and links
 
-# Default font sizes. These can be overridden by 'config.json'.
-# Users can modify 'config.json' to adjust these sizes.
+# Users can modify these font sizes.
 DEFAULT_FONT_SIZES = {
-    "ui_label": 10,
-    "button": 11,
-    "entry": 10,
-    "status_label": 10,
-    "link_label": 10,
-    "notebook_tab": 10,
+    "ui_label": 13,
+    "button": 13,
+    "entry": 12,
+    "status_label": 12,
+    "link_label": 12,
+    "notebook_tab": 12, # tab title text
     "output_default": 12,
-    "output_header": 13,
-    "output_data_label": 11,
-    "output_data_value": 12,
-    "output_hyperlink": 12,
-    "output_flag": 12
+    "output_header": 15,
+    "output_data_label": 14, # "lable:" text
+    "output_data_value": 14, # text after "label:"
+    "output_hyperlink": 12, # underlined hyperlilnk text
+    "output_flag": 12 # colored flag text
 }
 # Active font configuration, initialized with defaults and updated from config.json.
 FONT_CONFIG = DEFAULT_FONT_SIZES.copy()
@@ -742,10 +741,6 @@ def fetch_and_process_data():
     current_config = load_config()
     current_config['bearer_token_b64'] = encoded_token # Store new/updated encoded token
     current_config.pop('bearer_token', None) # Remove old plain text token if it exists
-    # FONT_CONFIG holds the active font settings (defaults or from user's JSON).
-    # This ensures any user-defined font sizes from a previous session that were loaded
-    # into FONT_CONFIG, or the defaults if no config existed, are saved back.
-    current_config['font_sizes'] = FONT_CONFIG
     save_config(current_config)
 
     status_var.set(f"Fetching data for ID: {book_id_int}...")
@@ -860,13 +855,6 @@ def fetch_and_process_data():
 if __name__ == "__main__":
     # Load application configuration (includes font sizes and potentially saved token)
     app_config = load_config()
-    user_font_sizes = app_config.get("font_sizes", {})
-    # Update the global FONT_CONFIG: user settings from JSON override in-script defaults.
-    FONT_CONFIG.update(user_font_sizes)
-
-    # If "font_sizes" was not in config.json, FONT_CONFIG (initially DEFAULT_FONT_SIZES)
-    # will be saved back to config.json during the next data fetch.
-    # This ensures the user can discover and modify the font_sizes section.
 
     window = tk.Tk()
     window.title("Hardcover Librarian Tool")
