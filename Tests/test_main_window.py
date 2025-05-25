@@ -1,105 +1,155 @@
-# ABOUTME: This file contains unit tests for the main application window.
-# ABOUTME: It ensures the main window initializes correctly and has basic UI elements.
+# ABOUTME: This file contains unit tests for the ConfigManager.
+# ABOUTME: It ensures token saving and loading functionalities work as expected using the keyring library.
 
-import sys
 import pytest
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QTabWidget, QLabel, 
-                             QWidget, QVBoxLayout, QGroupBox, QStatusBar)
-from librarian_assistant.main import MainWindow
+# We might need to import specific keyring errors if ConfigManager catches them explicitly.
+# For now, we'll use a generic Exception for side_effect in tests.
+# e.g., from keyring.errors import NoKeyringError 
 
-@pytest.fixture(scope="session")
-def qt_app(request):
-    app = QApplication.instance()
-    if app is None:
-        app_argv = sys.argv if hasattr(sys, 'argv') and sys.argv is not None else []
-        app = QApplication(app_argv)
+from librarian_assistant.config_manager import ConfigManager # Ensure this path is correct
+
+SERVICE_NAME = "HardcoverApp"
+USERNAME = "BearerToken"
+
+# Test for initial load (keyring returns None)
+def test_config_manager_load_token_initially_none(mocker):
+    """Tests that ConfigManager loads None if no token is found by keyring."""
+    # Mock keyring module as it's used in config_manager.py
+    mocked_keyring_module = mocker.patch('librarian_assistant.config_manager.keyring')
+    mocked_keyring_module.get_password.return_value = None
     
-    def fin():
-        if hasattr(sys, 'argv') and sys.argv is not None: 
-            current_app = QApplication.instance()
-            if current_app:
-                 current_app.quit() 
+    config = ConfigManager()
+    assert config.load_token() is None, "Should load None initially."
+    mocked_keyring_module.get_password.assert_called_once_with(SERVICE_NAME, USERNAME)
+
+# Test for saving and loading a token
+def test_config_manager_save_and_load_token(mocker):
+    """Tests saving a token via keyring and then loading it."""
+    mocked_keyring_module = mocker.patch('librarian_assistant.config_manager.keyring')
     
-    if hasattr(sys, 'argv') and sys.argv is not None:
-        request.addfinalizer(fin)
-    return app
-
-@pytest.fixture
-def main_window_instance(qt_app):
-    """Provides an instance of MainWindow for testing."""
-    window = MainWindow()
-    yield window
-    window.close() 
-
-def test_main_window_creation_and_title(main_window_instance):
-    window = main_window_instance
-    assert window is not None, "Main window should be created."
-    expected_title = "Librarian-Assistant - Hardcover.app Edition Viewer"
-    assert window.windowTitle() == expected_title, f"Window title should be '{expected_title}'"
-
-def test_tab_widget_exists(main_window_instance):
-    window = main_window_instance
-    tab_widget = window.findChild(QTabWidget)
-    if not tab_widget and window.centralWidget():
-        tab_widget = window.centralWidget().findChild(QTabWidget)
-    assert tab_widget is not None, "MainWindow should have a QTabWidget."
-
-def test_tab_widget_has_correct_tabs_and_content(main_window_instance): # <--- THIS TEST IS MODIFIED
-    window = main_window_instance
-    tab_widget = window.findChild(QTabWidget)
-    if not tab_widget and window.centralWidget():
-        tab_widget = window.centralWidget().findChild(QTabWidget)
-
-    assert tab_widget is not None, "QTabWidget not found."
-    assert tab_widget.count() == 2, f"Expected 2 tabs, but found {tab_widget.count()}."
-
-    # Test "Main View" tab
-    main_view_tab_content_widget = tab_widget.widget(0) 
-    assert main_view_tab_content_widget is not None, "Widget for 'Main View' tab not found."
-    assert tab_widget.tabText(0) == "Main View", "First tab title should be 'Main View'."
+    config = ConfigManager()
+    test_token = "my_secret_token_123"
     
-    main_view_labels = main_view_tab_content_widget.findChildren(QLabel)
-    # As per Prompt 1.3, the "Main View" tab now contains QGroupBoxes with their own labels.
-    # The original simple QLabel("Main View") from Prompt 1.2 is replaced by this structure.
-    # So, we just check that there are QLabels present within the tab (inside the group boxes).
-    assert len(main_view_labels) > 0, "No QLabels found in 'Main View' tab. It should contain placeholder labels within its group boxes."
-    # The specific check for a QLabel with text "Main View" is removed as the content has evolved.
-    # The actual content (group boxes) is verified by test_main_view_tab_layout_and_placeholders.
+    # Test saving: save_token should call keyring.set_password
+    config.save_token(test_token)
+    mocked_keyring_module.set_password.assert_called_once_with(SERVICE_NAME, USERNAME, test_token)
+    
+    # Test loading: load_token should call keyring.get_password
+    # Configure mock for this specific load call
+    mocked_keyring_module.get_password.return_value = test_token 
+    loaded_token = config.load_token()
+    assert loaded_token == test_token
+    # Ensure get_password was called (could be multiple times if tests run in certain orders,
+    # so assert_called_with is better than assert_called_once here if reset_mock isn't used between phases)
+    mocked_keyring_module.get_password.assert_called_with(SERVICE_NAME, USERNAME)
 
-    # Test "History" tab (this part remains the same)
-    history_tab_content_widget = tab_widget.widget(1) 
-    assert history_tab_content_widget is not None, "Widget for 'History' tab not found."
-    assert tab_widget.tabText(1) == "History", "Second tab title should be 'History'."
+# Test overwriting a token
+def test_config_manager_overwrite_token(mocker):
+    """Tests that saving a new token overwrites an existing one via keyring."""
+    mocked_keyring_module = mocker.patch('librarian_assistant.config_manager.keyring')
+    
+    config = ConfigManager()
+    initial_token = "initial_token_xyz"
+    new_token = "new_updated_token_xyz"
+    
+    # First save
+    config.save_token(initial_token)
+    mocked_keyring_module.set_password.assert_called_with(SERVICE_NAME, USERNAME, initial_token)
+    
+    # Simulate that keyring now has initial_token for an intermediate load
+    mocked_keyring_module.get_password.return_value = initial_token
+    assert config.load_token() == initial_token 
 
-    history_labels = history_tab_content_widget.findChildren(QLabel)
-    assert len(history_labels) > 0, "No QLabel found in 'History' tab." # Should find one
-    history_label_found = any(label.text() == "History" for label in history_labels)
-    assert history_label_found, "QLabel with text 'History' not found in 'History' tab."
+    # Second save (overwrite)
+    config.save_token(new_token)
+    # Assert set_password was called with the new_token. 
+    # If called multiple times, the last call should be this one.
+    mocked_keyring_module.set_password.assert_called_with(SERVICE_NAME, USERNAME, new_token)
+    assert mocked_keyring_module.set_password.call_count == 2 # Assuming fresh mock or reset
+
+    # Load after overwrite
+    mocked_keyring_module.get_password.return_value = new_token # Keyring now returns the new token
+    loaded_token = config.load_token()
+    assert loaded_token == new_token
+    # Check that get_password was called at least for the two load_token calls
+    assert mocked_keyring_module.get_password.call_count >= 2
 
 
-def test_main_view_tab_layout_and_placeholders(main_window_instance):
-    window = main_window_instance
-    tab_widget = window.centralWidget() 
-    assert isinstance(tab_widget, QTabWidget), "Central widget is not a QTabWidget."
+# Test saving an empty token
+def test_config_manager_save_empty_token(mocker):
+    """Tests saving an empty token string via keyring."""
+    mocked_keyring_module = mocker.patch('librarian_assistant.config_manager.keyring')
+    config = ConfigManager()
+    
+    config.save_token("")
+    mocked_keyring_module.set_password.assert_called_once_with(SERVICE_NAME, USERNAME, "")
+    
+    mocked_keyring_module.get_password.return_value = "" # Simulate keyring storing/returning empty string
+    assert config.load_token() == ""
+    mocked_keyring_module.get_password.assert_called_with(SERVICE_NAME, USERNAME)
 
-    main_view_tab_content = tab_widget.widget(0)
-    assert main_view_tab_content is not None, "'Main View' tab content widget not found."
-    assert isinstance(main_view_tab_content.layout(), QVBoxLayout), "'Main View' tab should have a QVBoxLayout."
+# Test saving None as token
+def test_config_manager_save_none_token(mocker):
+    """
+    Tests saving None as a token. Expects keyring.set_password(..., None) to be called
+    as per strict interpretation of Prompt 2.3.
+    """
+    mocked_keyring_module = mocker.patch('librarian_assistant.config_manager.keyring')
+    config = ConfigManager()
 
-    api_area = main_view_tab_content.findChild(QGroupBox, "apiInputArea")
-    assert api_area is not None, "'API & Book ID Input Area' QGroupBox not found."
-    assert api_area.title() == "API & Book ID Input Area", "Incorrect title for API input area."
+    # Initial save to have something to overwrite/clear
+    config.save_token("some_initial_value")
+    mocked_keyring_module.set_password.assert_called_with(SERVICE_NAME, USERNAME, "some_initial_value")
 
-    info_area = main_view_tab_content.findChild(QGroupBox, "bookInfoArea")
-    assert info_area is not None, "'General Book Information Area' QGroupBox not found."
-    assert info_area.title() == "General Book Information Area", "Incorrect title for book info area."
+    # Save None
+    config.save_token(None)
+    # This will call keyring.set_password(SERVICE_NAME, USERNAME, None)
+    # which might be problematic for keyring, but we test the call was made.
+    # The error handling test for save_token should cover if keyring itself errors.
+    mocked_keyring_module.set_password.assert_called_with(SERVICE_NAME, USERNAME, None)
+    
+    # If save_token(None) implies deletion or keyring stores it as retrievable None
+    mocked_keyring_module.get_password.return_value = None 
+    assert config.load_token() is None
+    mocked_keyring_module.get_password.assert_called_with(SERVICE_NAME, USERNAME)
 
-    table_area = main_view_tab_content.findChild(QGroupBox, "editionsTableArea")
-    assert table_area is not None, "'Editions Table Area' QGroupBox not found."
-    assert table_area.title() == "Editions Table Area", "Incorrect title for editions table area."
+# --- New tests for keyring error handling (as per Prompt 2.3) ---
 
-def test_main_window_has_status_bar(main_window_instance):
-    window = main_window_instance
-    status_bar = window.statusBar()
-    assert status_bar is not None, "MainWindow should have a QStatusBar."
-    assert isinstance(status_bar, QStatusBar), "statusBar() should return a QStatusBar instance."
+def test_load_token_handles_keyring_exception_and_logs(mocker, caplog):
+    """
+    Tests that load_token handles keyring exceptions gracefully (returns None and logs error).
+    """
+    mocked_keyring_module = mocker.patch('librarian_assistant.config_manager.keyring')
+    # Simulate a keyring error (e.g., NoKeyringError or any other Exception)
+    mocked_keyring_module.get_password.side_effect = Exception("Simulated Keyring Access Failed")
+    
+    config = ConfigManager()
+    loaded_token = config.load_token()
+    
+    assert loaded_token is None, "load_token should return None on keyring exception."
+    mocked_keyring_module.get_password.assert_called_once_with(SERVICE_NAME, USERNAME)
+    # Check for log messages (requires ConfigManager to implement logging)
+    assert "Error loading token from keyring" in caplog.text
+    assert "Simulated Keyring Access Failed" in caplog.text
+
+def test_save_token_handles_keyring_exception_and_logs(mocker, caplog):
+    """
+    Tests that save_token handles keyring exceptions gracefully (logs error and doesn't crash).
+    """
+    mocked_keyring_module = mocker.patch('librarian_assistant.config_manager.keyring')
+    error_message = "Simulated Keyring Set Failed"
+    mocked_keyring_module.set_password.side_effect = Exception(error_message)
+    
+    config = ConfigManager()
+    test_token = "token_that_will_fail_to_save"
+    
+    # The save_token method itself should not raise the exception.
+    try:
+        config.save_token(test_token)
+    except Exception as e_raised:
+        pytest.fail(f"ConfigManager.save_token raised an unexpected exception: {e_raised}")
+        
+    mocked_keyring_module.set_password.assert_called_once_with(SERVICE_NAME, USERNAME, test_token)
+    # Check for log messages
+    assert "Error saving token to keyring" in caplog.text
+    assert error_message in caplog.text

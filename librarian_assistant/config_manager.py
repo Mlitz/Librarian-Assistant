@@ -1,33 +1,50 @@
 # ABOUTME: This file defines the ConfigManager for handling application configuration.
-# ABOUTME: Initially, it provides simple in-memory storage for the API Bearer Token.
+# ABOUTME: It uses the keyring library for secure storage of the API Bearer Token.
+
+import keyring
+import keyring.errors # For specific keyring exceptions if needed
+import logging
+
+# Configure a logger for this module
+logger = logging.getLogger(__name__)
+
+SERVICE_NAME = "HardcoverApp"
+USERNAME = "BearerToken"
 
 class ConfigManager:
     """
-    Manages configuration data for the Librarian-Assistant application.
-    For Prompt 2.2, this provides basic in-memory storage for the API token.
-    Secure storage will be implemented in a later prompt.
+    Manages configuration data for the Librarian-Assistant application,
+    using the keyring library for secure token storage.
     """
     def __init__(self):
         """
         Initializes the ConfigManager.
-        The token is stored in an instance variable for now.
+        (No in-memory token storage needed anymore)
         """
-        self._token = None  # Initialize token as None
+        pass
 
     def save_token(self, token: str | None):
-        """
-        Saves the API Bearer Token.
-
-        Args:
-            token: The token string to save. Can be None to clear the token.
-        """
-        self._token = token
+        try:
+            # If token is None, keyring might store it as "None" string or empty.
+            # The prompt is to call set_password with the token.
+            actual_token_to_store = token 
+            keyring.set_password(SERVICE_NAME, USERNAME, actual_token_to_store)
+            logger.info("Token processed by keyring.set_password.")
+        except Exception as e:
+            logger.error(f"Error saving token to keyring: {e}")
 
     def load_token(self) -> str | None:
-        """
-        Loads the API Bearer Token.
-
-        Returns:
-            The saved token string, or None if no token has been saved or if it was cleared.
-        """
-        return self._token
+        try:
+            stored_value = keyring.get_password(SERVICE_NAME, USERNAME)
+            if stored_value is not None:
+                logger.info(f"Value loaded from keyring: '{stored_value}'")
+                # If keyring stored Python None as the string "None"
+                if stored_value == "None": # Check if the stored value is the string "None"
+                    return None
+                return stored_value # Return other strings as is
+            else:
+                logger.info("No token found in keyring for the specified service/username.")
+                return None
+        except Exception as e:
+            logger.error(f"Error loading token from keyring: {e}")
+            return None

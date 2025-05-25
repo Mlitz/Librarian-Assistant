@@ -2,78 +2,78 @@ Librarian-Assistant Project TODO List
 Phase 0: Foundation & Setup
 Chunk 1: Project Setup and Basic UI Shell (Prompts 1.1 - 1.3)
 
-    [ ] Prompt 1.1: Initialize Project & Main Window
+    [X] Prompt 1.1: Initialize Project & Main Window
 
-        [ ] Create main application script (main.py).
+        [X] Create main application script (main.py).
 
-        [ ] Set up basic PyQt QMainWindow.
+        [X] Set up basic PyQt QMainWindow.
 
-        [ ] Set window title: "Librarian-Assistant - Hardcover.app Edition Viewer".
+        [X] Set window title: "Librarian-Assistant - Hardcover.app Edition Viewer".
 
-        [ ] Implement basic dark theme stylesheet.
+        [X] Implement basic dark theme stylesheet.
 
-        [ ] Ensure system default fonts are used.
+        [X] Ensure system default fonts are used.
 
-        [ ] Create placeholder test suite (unittest or pytest).
+        [X] Create placeholder test suite (unittest or pytest).
 
-        [ ] Add simple test: main window creation.
+        [X] Add simple test: main window creation.
 
-    [ ] Prompt 1.2: Implement Tabbed Interface
+    [X] Prompt 1.2: Implement Tabbed Interface
 
-        [ ] Add QTabWidget to main.py.
+        [X] Add QTabWidget to main.py.
 
-        [ ] Create "Main View" tab.
+        [X] Create "Main View" tab.
 
-        [ ] Create "History" tab.
+        [X] Create "History" tab.
 
-        [ ] Add placeholder QLabel in each tab.
+        [X] Add placeholder QLabel in each tab.
 
-        [ ] Ensure dark theme applies to tabs.
+        [X] Ensure dark theme applies to tabs.
 
-        [ ] Unit Test: QTabWidget presence.
+        [X] Unit Test: QTabWidget presence.
 
-        [ ] Unit Test: Correct number and titles of tabs.
+        [X] Unit Test: Correct number and titles of tabs.
 
-    [ ] Prompt 1.3: Define "Main View" Layout Structure
+    [X] Prompt 1.3: Define "Main View" Layout Structure
 
-        [ ] Set up vertical layout in "Main View" tab.
+        [X] Set up vertical layout in "Main View" tab.
 
-        [ ] Add placeholder QGroupBox or QFrame for "API & Book ID Input Area".
+        [X] Add placeholder QGroupBox or QFrame for "API & Book ID Input Area".
 
-        [ ] Add placeholder for "General Book Information Area".
+        [X] Add placeholder for "General Book Information Area".
 
-        [ ] Add placeholder for "Editions Table Area".
+        [X] Add placeholder for "Editions Table Area".
 
-        [ ] Add QStatusBar to the main window.
+        [X] Add QStatusBar to the main window.
 
-        [ ] Ensure placeholders are distinguishable in dark theme.
+        [X] Ensure placeholders are distinguishable in dark theme.
 
-        [ ] Unit Test: Placeholder areas present in "Main View".
+        [X] Unit Test: Placeholder areas present in "Main View".
 
-        [ ] Unit Test: Status bar part of main window.
+        [X] Unit Test: Status bar part of main window.
 
 Phase 1: API Authentication & Configuration
 Chunk 2: Bearer Token Management (Prompts 2.1 - 2.3)
 
-    [ ] Prompt 2.1: Create "Set/Update Token" Dialog
+    [X] Prompt 2.1: Create "Set/Update Token" Dialog
 
-        [ ] Create token_dialog.py.
+        [X] Create token_dialog.py.
 
-        [ ] Implement TokenDialog (QDialog subclass).
+        [X] Implement TokenDialog (QDialog subclass).
 
-        [ ] Add QLabel "Enter your Hardcover.app Bearer Token:".
+        [X] Add QLabel "Enter your Hardcover.app Bearer Token:".
 
-        [ ] Add QLineEdit for token input.
+        [X] Add QLineEdit for token input.
 
-        [ ] Add "OK" and "Cancel" buttons.
+        [X] Add "OK" and "Cancel" buttons.
 
-        [ ] "OK" button emits signal with token.
+        [X] "OK" button emits signal with token.
 
-        [ ] Apply dark theme to dialog.
+        [X] Apply dark theme to dialog.
 
-        [ ] Unit Test: TokenDialog UI elements present.
+        [X] Unit Test: TokenDialog UI elements present.
 
-        [ ] Unit Test: TokenDialog button clicks and signal emission.
+        [X] Unit Test: TokenDialog button clicks and signal emission.
 
     [ ] Prompt 2.2: Integrate Token Input & Masked Display
 
