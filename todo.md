@@ -75,74 +75,74 @@ Chunk 2: Bearer Token Management (Prompts 2.1 - 2.3)
 
         [X] Unit Test: TokenDialog button clicks and signal emission.
 
-    [ ] Prompt 2.2: Integrate Token Input & Masked Display
+    [X] Prompt 2.2: Integrate Token Input & Masked Display
 
-        [ ] In "API & Book ID Input Area":
+        [X] In "API & Book ID Input Area":
 
-            [ ] Add QLabel for masked token display (e.g., "Token: *******" or "Token: Not Set").
+            [X] Add QLabel for masked token display (e.g., "Token: *******" or "Token: Not Set").
 
-            [ ] Add QPushButton "Set/Update Token".
+            [X] Add QPushButton "Set/Update Token".
 
-        [ ] Clicking "Set/Update Token" opens TokenDialog.
+        [X] Clicking "Set/Update Token" opens TokenDialog.
 
-        [ ] Create config_manager.py with ConfigManager class.
+        [X] Create config_manager.py with ConfigManager class.
 
-        [ ] Implement ConfigManager.save_token(token) (temporary storage for now).
+        [X] Implement ConfigManager.save_token(token) (temporary storage for now).
 
-        [ ] Implement ConfigManager.load_token() (temporary storage for now).
+        [X] Implement ConfigManager.load_token() (temporary storage for now).
 
-        [ ] On TokenDialog "OK", use ConfigManager to save token.
+        [X] On TokenDialog "OK", use ConfigManager to save token.
 
-        [ ] Update masked token display on main view.
+        [X] Update masked token display on main view.
 
-        [ ] On app startup, load token via ConfigManager and update display.
+        [X] On app startup, load token via ConfigManager and update display.
 
-        [ ] Unit Test: Token display and button presence.
+        [X] Unit Test: Token display and button presence.
 
-        [ ] Unit Test: Mock TokenDialog and ConfigManager.
+        [X] Unit Test: Mock TokenDialog and ConfigManager.
 
-        [ ] Unit Test: "Set/Update Token" shows dialog.
+        [X] Unit Test: "Set/Update Token" shows dialog.
 
-        [ ] Unit Test: ConfigManager.save_token called and display updates.
+        [X] Unit Test: ConfigManager.save_token called and display updates.
 
-        [ ] Unit Test: ConfigManager.load_token called on startup and display reflects state.
+        [X] Unit Test: ConfigManager.load_token called on startup and display reflects state.
 
-    [ ] Prompt 2.3: Implement Secure Bearer Token Storage
+    [X] Prompt 2.3: Implement Secure Bearer Token Storage
 
-        [ ] Modify ConfigManager in config_manager.py.
+        [X] Modify ConfigManager in config_manager.py.
 
-        [ ] Import keyring library.
+        [X] Import keyring library.
 
-        [ ] save_token(token) uses keyring.set_password().
+        [X] save_token(token) uses keyring.set_password().
 
-        [ ] load_token() uses keyring.get_password().
+        [X] load_token() uses keyring.get_password().
 
-        [ ] Add error handling for keyring exceptions (log errors).
+        [X] Add error handling for keyring exceptions (log errors).
 
-        [ ] Unit Test: Mock keyring library.
+        [X] Unit Test: Mock keyring library.
 
-        [ ] Unit Test: Successful token saving and loading via mocked keyring.
+        [X] Unit Test: Successful token saving and loading via mocked keyring.
 
-        [ ] Unit Test: keyring exception scenarios and graceful handling.
+        [X] Unit Test: keyring exception scenarios and graceful handling.
 
 Phase 2: Core Data Fetching & Display (General Book Info)
 Chunk 3: Basic API Interaction & Book ID Input (Prompts 3.1 - 3.3)
 
-    [ ] Prompt 3.1: Implement Book ID Input & "Fetch" Button
+    [X] Prompt 3.1: Implement Book ID Input & "Fetch" Button
 
-        [ ] In "API & Book ID Input Area":
+        [X] In "API & Book ID Input Area":
 
-            [ ] Add QLabel "Book ID:".
+            [X] Add QLabel "Book ID:".
 
-            [ ] Add QLineEdit for Book ID (numerical input only).
+            [X] Add QLineEdit for Book ID (numerical input only).
 
-            [ ] Add QPushButton "Fetch Data".
+            [X] Add QPushButton "Fetch Data".
 
-        [ ] Unit Test: UI elements presence.
+        [X] Unit Test: UI elements presence.
 
-        [ ] Unit Test: Book ID QLineEdit accepts only numbers.
+        [X] Unit Test: Book ID QLineEdit accepts only numbers.
 
-        [ ] Unit Test: Simulate "Fetch Data" click (logging/printing for now).
+        [X] Unit Test: Simulate "Fetch Data" click (logging/printing for now).
 
     [ ] Prompt 3.2: Create API Client Service
 

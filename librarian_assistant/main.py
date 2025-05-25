@@ -2,14 +2,19 @@
 # ABOUTME: It defines the main window and initializes the application.
 
 import sys
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QTabWidget, QWidget,
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QTabWidget, QWidget, QLineEdit, 
                              QVBoxLayout, QLabel, QGroupBox, QStatusBar, QPushButton)
+from PyQt5.QtGui import QIntValidator, QValidator # Import QIntValidator and QValidator
 from PyQt5.QtCore import Qt # For dialog results, though not directly used in this snippet
 
 # Import ConfigManager for Prompt 2.2
 from librarian_assistant.config_manager import ConfigManager
 # Import TokenDialog for Prompt 2.2
 from librarian_assistant.token_dialog import TokenDialog
+
+import logging
+logger = logging.getLogger(__name__)
+
 
 class MainWindow(QMainWindow):
     """
@@ -39,6 +44,25 @@ class MainWindow(QMainWindow):
         self.set_token_button.setObjectName("setTokenButton")
         self.set_token_button.clicked.connect(self._open_set_token_dialog)
         api_layout.addWidget(self.set_token_button)
+
+        # Add Book ID input elements as per Prompt 3.1
+        self.book_id_label = QLabel("Book ID:")
+        self.book_id_label.setObjectName("bookIdLabel")
+        api_layout.addWidget(self.book_id_label)
+
+        self.book_id_line_edit = QLineEdit()
+        self.book_id_line_edit.setObjectName("bookIdLineEdit")
+        # Placeholder text can be useful for users
+        # Add QIntValidator to allow only numbers
+        self.book_id_line_edit.setValidator(QIntValidator())
+        self.book_id_line_edit.textChanged.connect(self._on_book_id_text_changed)
+        self.book_id_line_edit.setPlaceholderText("Enter numerical Book ID")
+        api_layout.addWidget(self.book_id_line_edit)
+
+        self.fetch_data_button = QPushButton("Fetch Data")
+        self.fetch_data_button.setObjectName("fetchDataButton")
+        self.fetch_data_button.clicked.connect(self._on_fetch_data_clicked) # Connect signal
+        api_layout.addWidget(self.fetch_data_button)
 
         main_view_layout.addWidget(self.api_input_area)
 
@@ -100,6 +124,36 @@ class MainWindow(QMainWindow):
         else:
             self.token_display_label.setText("Token: Not Set")
 
+    def _on_book_id_text_changed(self, text: str):
+        """
+        If the text in book_id_line_edit changes to something
+        that QIntValidator deems Invalid, clear the line edit.
+        This ensures programmatic setText("abc") results in an empty field,
+        aligning with test expectations. QIntValidator itself handles direct 
+        user input prevention by not allowing invalid characters to be typed.
+        """
+        validator = self.book_id_line_edit.validator()
+        if validator is not None:
+            # 'text' is the new content of the QLineEdit after the change.
+            state, _, _ = validator.validate(text, 0) 
+            if state == QValidator.Invalid:
+                self.book_id_line_edit.blockSignals(True) # Prevent recursion
+                self.book_id_line_edit.setText("")
+                self.book_id_line_edit.blockSignals(False)
+
+    def _on_fetch_data_clicked(self):
+        """
+        Handles the "Fetch Data" button click.
+        Logs the current Book ID and token status.
+        """
+        book_id = self.book_id_line_edit.text()
+        token = self.config_manager.load_token()
+
+        token_status_message = "Set" if token else "Not Set"
+        
+        logger.info(
+            f"Fetch Data clicked. Book ID: '{book_id}'. Token status: {token_status_message}."
+        )
 
 def main():
     """

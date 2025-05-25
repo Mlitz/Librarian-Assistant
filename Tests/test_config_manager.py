@@ -12,11 +12,18 @@ from librarian_assistant.config_manager import ConfigManager
 SERVICE_NAME = "HardcoverApp" 
 USERNAME = "BearerToken"
 
-def test_config_manager_load_token_initially_none():
+def test_config_manager_load_token_initially_none(mocker): # Add mocker fixture
     """Tests that a new ConfigManager loads None if no token has been saved."""
+    # Mock keyring.get_password to simulate no token being found
+    # This ensures the test is isolated from the actual keyring state.
+    mocked_keyring_get_password = mocker.patch('librarian_assistant.config_manager.keyring.get_password')
+    mocked_keyring_get_password.return_value = None
+
     from librarian_assistant.config_manager import ConfigManager # Import for TDD
     config = ConfigManager()
     assert config.load_token() is None, "Should load None initially."
+    # Verify that keyring.get_password was called as expected
+    mocked_keyring_get_password.assert_called_once_with(SERVICE_NAME, USERNAME)
 
 def test_config_manager_save_and_load_token():
     """Tests saving a token and then loading it."""

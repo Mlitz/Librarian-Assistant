@@ -39,9 +39,9 @@ class ConfigManager:
             if stored_value is not None:
                 logger.info(f"Value loaded from keyring: '{stored_value}'")
                 # If keyring stored Python None as the string "None"
-                if stored_value == "None": # Check if the stored value is the string "None"
+                if stored_value == "None":
                     return None
-                return stored_value # Return other strings as is
+                return stored_value
             else:
                 logger.info("No token found in keyring for the specified service/username.")
                 return None

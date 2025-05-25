@@ -1,155 +1,118 @@
-# ABOUTME: This file contains unit tests for the ConfigManager.
-# ABOUTME: It ensures token saving and loading functionalities work as expected using the keyring library.
+# In tests/test_main_window.py
+import unittest
+from unittest.mock import patch # Import patch
+from PyQt5.QtWidgets import QApplication, QLabel, QLineEdit, QPushButton, QGroupBox
+from librarian_assistant.main import MainWindow # Make sure this import path is correct
 
-import pytest
-# We might need to import specific keyring errors if ConfigManager catches them explicitly.
-# For now, we'll use a generic Exception for side_effect in tests.
-# e.g., from keyring.errors import NoKeyringError 
+# QApplication instance is required for PyQt tests
+app = QApplication([])
 
-from librarian_assistant.config_manager import ConfigManager # Ensure this path is correct
+class TestMainWindow(unittest.TestCase):
+    def setUp(self):
+        """Set up the test environment for MainWindow tests."""
+        self.window = MainWindow()
 
-SERVICE_NAME = "HardcoverApp"
-USERNAME = "BearerToken"
+    def tearDown(self):
+        """Clean up after tests."""
+        self.window.close()
+        # It's good practice to delete the window to free resources,
+        # especially if many tests create windows.
+        del self.window
 
-# Test for initial load (keyring returns None)
-def test_config_manager_load_token_initially_none(mocker):
-    """Tests that ConfigManager loads None if no token is found by keyring."""
-    # Mock keyring module as it's used in config_manager.py
-    mocked_keyring_module = mocker.patch('librarian_assistant.config_manager.keyring')
-    mocked_keyring_module.get_password.return_value = None
-    
-    config = ConfigManager()
-    assert config.load_token() is None, "Should load None initially."
-    mocked_keyring_module.get_password.assert_called_once_with(SERVICE_NAME, USERNAME)
+    # ... (other existing tests, if any) ...
 
-# Test for saving and loading a token
-def test_config_manager_save_and_load_token(mocker):
-    """Tests saving a token via keyring and then loading it."""
-    mocked_keyring_module = mocker.patch('librarian_assistant.config_manager.keyring')
-    
-    config = ConfigManager()
-    test_token = "my_secret_token_123"
-    
-    # Test saving: save_token should call keyring.set_password
-    config.save_token(test_token)
-    mocked_keyring_module.set_password.assert_called_once_with(SERVICE_NAME, USERNAME, test_token)
-    
-    # Test loading: load_token should call keyring.get_password
-    # Configure mock for this specific load call
-    mocked_keyring_module.get_password.return_value = test_token 
-    loaded_token = config.load_token()
-    assert loaded_token == test_token
-    # Ensure get_password was called (could be multiple times if tests run in certain orders,
-    # so assert_called_with is better than assert_called_once here if reset_mock isn't used between phases)
-    mocked_keyring_module.get_password.assert_called_with(SERVICE_NAME, USERNAME)
+    def test_book_id_input_elements_present(self):
+        """
+        Test that the Book ID label, QLineEdit, and Fetch Data button are present
+        in the API & Book ID Input Area.
+        """
+        # Find the "API & Book ID Input Area" QGroupBox
+        api_input_area = self.window.findChild(QGroupBox, "apiInputArea")
+        self.assertIsNotNone(api_input_area, "API & Book ID Input Area QGroupBox not found.")
 
-# Test overwriting a token
-def test_config_manager_overwrite_token(mocker):
-    """Tests that saving a new token overwrites an existing one via keyring."""
-    mocked_keyring_module = mocker.patch('librarian_assistant.config_manager.keyring')
-    
-    config = ConfigManager()
-    initial_token = "initial_token_xyz"
-    new_token = "new_updated_token_xyz"
-    
-    # First save
-    config.save_token(initial_token)
-    mocked_keyring_module.set_password.assert_called_with(SERVICE_NAME, USERNAME, initial_token)
-    
-    # Simulate that keyring now has initial_token for an intermediate load
-    mocked_keyring_module.get_password.return_value = initial_token
-    assert config.load_token() == initial_token 
+        # Check for the Book ID QLabel
+        book_id_label = api_input_area.findChild(QLabel, "bookIdLabel")
+        self.assertIsNotNone(book_id_label, "Book ID QLabel not found.")
+        self.assertEqual(book_id_label.text(), "Book ID:")
 
-    # Second save (overwrite)
-    config.save_token(new_token)
-    # Assert set_password was called with the new_token. 
-    # If called multiple times, the last call should be this one.
-    mocked_keyring_module.set_password.assert_called_with(SERVICE_NAME, USERNAME, new_token)
-    assert mocked_keyring_module.set_password.call_count == 2 # Assuming fresh mock or reset
+        # Check for the Book ID QLineEdit
+        book_id_line_edit = api_input_area.findChild(QLineEdit, "bookIdLineEdit")
+        self.assertIsNotNone(book_id_line_edit, "Book ID QLineEdit not found.")
 
-    # Load after overwrite
-    mocked_keyring_module.get_password.return_value = new_token # Keyring now returns the new token
-    loaded_token = config.load_token()
-    assert loaded_token == new_token
-    # Check that get_password was called at least for the two load_token calls
-    assert mocked_keyring_module.get_password.call_count >= 2
+        # Check for the Fetch Data QPushButton
+        fetch_data_button = api_input_area.findChild(QPushButton, "fetchDataButton")
+        self.assertIsNotNone(fetch_data_button, "Fetch Data QPushButton not found.")
+        self.assertEqual(fetch_data_button.text(), "Fetch Data")
 
+    def test_book_id_line_edit_accepts_only_numbers(self):
+        """
+        Test that the Book ID QLineEdit only accepts numerical input.
+        """
+        book_id_line_edit = self.window.findChild(QLineEdit, "bookIdLineEdit")
+        self.assertIsNotNone(book_id_line_edit, "Book ID QLineEdit not found.")
 
-# Test saving an empty token
-def test_config_manager_save_empty_token(mocker):
-    """Tests saving an empty token string via keyring."""
-    mocked_keyring_module = mocker.patch('librarian_assistant.config_manager.keyring')
-    config = ConfigManager()
-    
-    config.save_token("")
-    mocked_keyring_module.set_password.assert_called_once_with(SERVICE_NAME, USERNAME, "")
-    
-    mocked_keyring_module.get_password.return_value = "" # Simulate keyring storing/returning empty string
-    assert config.load_token() == ""
-    mocked_keyring_module.get_password.assert_called_with(SERVICE_NAME, USERNAME)
+        # Test with non-numeric input
+        book_id_line_edit.setText("abc")
+        self.assertEqual(book_id_line_edit.text(), "", "QLineEdit should be empty after non-numeric input.")
 
-# Test saving None as token
-def test_config_manager_save_none_token(mocker):
-    """
-    Tests saving None as a token. Expects keyring.set_password(..., None) to be called
-    as per strict interpretation of Prompt 2.3.
-    """
-    mocked_keyring_module = mocker.patch('librarian_assistant.config_manager.keyring')
-    config = ConfigManager()
+        # Test with numeric input
+        book_id_line_edit.setText("123")
+        self.assertEqual(book_id_line_edit.text(), "123", "QLineEdit should accept numeric input.")
 
-    # Initial save to have something to overwrite/clear
-    config.save_token("some_initial_value")
-    mocked_keyring_module.set_password.assert_called_with(SERVICE_NAME, USERNAME, "some_initial_value")
-
-    # Save None
-    config.save_token(None)
-    # This will call keyring.set_password(SERVICE_NAME, USERNAME, None)
-    # which might be problematic for keyring, but we test the call was made.
-    # The error handling test for save_token should cover if keyring itself errors.
-    mocked_keyring_module.set_password.assert_called_with(SERVICE_NAME, USERNAME, None)
-    
-    # If save_token(None) implies deletion or keyring stores it as retrievable None
-    mocked_keyring_module.get_password.return_value = None 
-    assert config.load_token() is None
-    mocked_keyring_module.get_password.assert_called_with(SERVICE_NAME, USERNAME)
-
-# --- New tests for keyring error handling (as per Prompt 2.3) ---
-
-def test_load_token_handles_keyring_exception_and_logs(mocker, caplog):
-    """
-    Tests that load_token handles keyring exceptions gracefully (returns None and logs error).
-    """
-    mocked_keyring_module = mocker.patch('librarian_assistant.config_manager.keyring')
-    # Simulate a keyring error (e.g., NoKeyringError or any other Exception)
-    mocked_keyring_module.get_password.side_effect = Exception("Simulated Keyring Access Failed")
-    
-    config = ConfigManager()
-    loaded_token = config.load_token()
-    
-    assert loaded_token is None, "load_token should return None on keyring exception."
-    mocked_keyring_module.get_password.assert_called_once_with(SERVICE_NAME, USERNAME)
-    # Check for log messages (requires ConfigManager to implement logging)
-    assert "Error loading token from keyring" in caplog.text
-    assert "Simulated Keyring Access Failed" in caplog.text
-
-def test_save_token_handles_keyring_exception_and_logs(mocker, caplog):
-    """
-    Tests that save_token handles keyring exceptions gracefully (logs error and doesn't crash).
-    """
-    mocked_keyring_module = mocker.patch('librarian_assistant.config_manager.keyring')
-    error_message = "Simulated Keyring Set Failed"
-    mocked_keyring_module.set_password.side_effect = Exception(error_message)
-    
-    config = ConfigManager()
-    test_token = "token_that_will_fail_to_save"
-    
-    # The save_token method itself should not raise the exception.
-    try:
-        config.save_token(test_token)
-    except Exception as e_raised:
-        pytest.fail(f"ConfigManager.save_token raised an unexpected exception: {e_raised}")
+        # Test with mixed input (should ideally only take numbers or be empty)
+        book_id_line_edit.setText("1a2b3")
+        # Depending on how QIntValidator works or how we implement it,
+        # it might result in "123" or "" or "1".
+        # For a strict "only numbers allowed at all" policy, it should be empty or reject.
+        # If it's a QIntValidator, it might allow partial valid input or clear on invalid.
+        # Let's assume for now it should clear if invalid characters are part of the string.
+        self.assertEqual(book_id_line_edit.text(), "", "QLineEdit should be empty after mixed input if strict.")
         
-    mocked_keyring_module.set_password.assert_called_once_with(SERVICE_NAME, USERNAME, test_token)
-    # Check for log messages
-    assert "Error saving token to keyring" in caplog.text
-    assert error_message in caplog.text
+        # In Tests/test_main_window.py
+# ... (other imports and TestMainWindow class setup) ...
+
+    @patch('librarian_assistant.main.logger.info') # Decorator for mocking logger.info
+    def test_fetch_data_button_logs_book_id_and_token_status(self, mock_main_logger_info): # mock_main_logger_info is passed by decorator
+        """
+        Test that clicking the "Fetch Data" button logs the current Book ID
+        and token status.
+        """
+        # Use patch.object as a context manager for self.window.config_manager.load_token
+        with patch.object(self.window.config_manager, 'load_token') as mock_load_token:
+            book_id_line_edit = self.window.findChild(QLineEdit, "bookIdLineEdit")
+            self.assertIsNotNone(book_id_line_edit, "Book ID QLineEdit not found.")
+            
+            fetch_data_button = self.window.findChild(QPushButton, "fetchDataButton")
+            self.assertIsNotNone(fetch_data_button, "Fetch Data QPushButton not found.")
+
+            # Scenario 1: Token is set, Book ID is entered
+            mock_load_token.return_value = "fake_token_for_test" # Simulate a token being present
+            # We don't strictly need to call _update_token_display for this test's logic,
+            # as the slot will call load_token directly.
+            
+            test_book_id_scenario1 = "12345"
+            book_id_line_edit.setText(test_book_id_scenario1)
+            
+            fetch_data_button.click() # Simulate the button click
+            
+            expected_log_message_scenario1 = f"Fetch Data clicked. Book ID: '{test_book_id_scenario1}'. Token status: Set."
+            mock_main_logger_info.assert_any_call(expected_log_message_scenario1)
+            
+            # Clear mock calls for the next scenario
+            mock_main_logger_info.reset_mock()
+
+            # Scenario 2: No token is set, Book ID is empty
+            mock_load_token.return_value = None # Simulate no token
+            
+            test_book_id_scenario2 = ""
+            book_id_line_edit.setText(test_book_id_scenario2) # Empty Book ID
+            
+            fetch_data_button.click() # Simulate the button click
+            
+            expected_log_message_scenario2 = f"Fetch Data clicked. Book ID: '{test_book_id_scenario2}'. Token status: Not Set."
+            mock_main_logger_info.assert_any_call(expected_log_message_scenario2)
+
+
+
+if __name__ == '__main__':
+    unittest.main()
