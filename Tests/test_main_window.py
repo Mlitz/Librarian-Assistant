@@ -67,10 +67,7 @@ class TestMainWindow(unittest.TestCase):
         # If it's a QIntValidator, it might allow partial valid input or clear on invalid.
         # Let's assume for now it should clear if invalid characters are part of the string.
         self.assertEqual(book_id_line_edit.text(), "", "QLineEdit should be empty after mixed input if strict.")
-        
-        # In Tests/test_main_window.py
-# ... (other imports and TestMainWindow class setup) ...
-
+       
     @patch('librarian_assistant.main.logger.info') # Decorator for mocking logger.info
     def test_fetch_data_button_logs_book_id_and_token_status(self, mock_main_logger_info): # mock_main_logger_info is passed by decorator
         """
