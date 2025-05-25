@@ -144,67 +144,67 @@ Chunk 3: Basic API Interaction & Book ID Input (Prompts 3.1 - 3.3)
 
         [X] Unit Test: Simulate "Fetch Data" click (logging/printing for now).
 
-    [ ] Prompt 3.2: Create API Client Service
+    [X] Prompt 3.2: Create API Client Service
 
-        [ ] Create api_client.py with ApiClient class.
+        [X] Create api_client.py with ApiClient class.
 
-        [ ] Constructor accepts API URL.
+        [X] Constructor accepts API URL.
 
-        [ ] Implement fetch_book_data(book_id: int, bearer_token: str):
+        [X] Implement fetch_book_data(book_id: int, bearer_token: str):
 
-            [ ] Construct GraphQL query from spec.md Appendix A.
+            [X] Construct GraphQL query from spec.md Appendix A.
 
-            [ ] Use requests/httpx and gql.
+            [X] Use requests/httpx and gql.
 
-            [ ] Include Bearer Token in "Authorization" header.
+            [X] Include Bearer Token in "Authorization" header.
 
-            [ ] Mock requests.post (or httpx.Client.post).
+            [X] Mock requests.post (or httpx.Client.post).
 
-            [ ] Mock success response (e.g., book_id=123).
+            [X] Mock success response (e.g., book_id=123).
 
-            [ ] Mock "not found" error (e.g., book_id=404).
+            [X] Mock "not found" error (e.g., book_id=404).
 
-            [ ] Mock authentication error (e.g., bearer_token="invalid_token").
+            [X] Mock authentication error (e.g., bearer_token="invalid_token").
 
-            [ ] Return parsed JSON or raise custom exceptions (ApiException, ApiAuthError, ApiNotFoundError, NetworkError).
+            [X] Return parsed JSON or raise custom exceptions (ApiException, ApiAuthError, ApiNotFoundError, NetworkError).
 
-        [ ] Unit Test: ApiClient successful query construction & mock response parsing.
+        [X] Unit Test: ApiClient successful query construction & mock response parsing.
 
-        [ ] Unit Test: ApiClient "not found" scenario.
+        [X] Unit Test: ApiClient "not found" scenario.
 
-        [ ] Unit Test: ApiClient authentication error scenario.
+        [X] Unit Test: ApiClient authentication error scenario.
 
-        [ ] Unit Test: ApiClient general network error scenario.
+        [X] Unit Test: ApiClient general network error scenario.
 
-    [ ] Prompt 3.3: Integrate ApiClient with "Fetch Data" Button & Status Bar
+    [X] Prompt 3.3: Integrate ApiClient with "Fetch Data" Button & Status Bar
 
-        [ ] On "Fetch Data" click:
+        [X] On "Fetch Data" click:
 
-            [ ] Retrieve and validate Book ID (numerical). Show status bar error if invalid.
+            [X] Retrieve and validate Book ID (numerical). Show status bar error if invalid.
 
-            [ ] Retrieve Bearer Token via ConfigManager. Show status bar error if not set.
+            [X] Retrieve Bearer Token via ConfigManager. Show status bar error if not set.
 
-            [ ] Instantiate ApiClient.
+            [X] Instantiate ApiClient.
 
-            [ ] Call api_client.fetch_book_data(book_id, token).
+            [X] Call api_client.fetch_book_data(book_id, token).
 
-            [ ] Update status bar: "Loading data...", "Successfully fetched...", "Book ID not found.", "API Authentication Failed.", "Network error.", "An unexpected error occurred...".
+            [X] Update status bar: "Loading data...", "Successfully fetched...", "Book ID not found.", "API Authentication Failed.", "Network error.", "An unexpected error occurred...".
 
-        [ ] Unit Test: Mock ConfigManager and ApiClient.
+        [X] Unit Test: Mock ConfigManager and ApiClient.
 
-        [ ] Unit Test: Click "Fetch Data" with invalid Book ID format.
+        [X] Unit Test: Click "Fetch Data" with invalid Book ID format.
 
-        [ ] Unit Test: Click "Fetch Data" with token not set.
+        [X] Unit Test: Click "Fetch Data" with token not set.
 
-        [ ] Unit Test: Click "Fetch Data" with successful API call (mocked).
+        [X] Unit Test: Click "Fetch Data" with successful API call (mocked).
 
-        [ ] Unit Test: Click "Fetch Data" with ApiNotFoundError.
+        [X] Unit Test: Click "Fetch Data" with ApiNotFoundError.
 
-        [ ] Unit Test: Click "Fetch Data" with ApiAuthError.
+        [X] Unit Test: Click "Fetch Data" with ApiAuthError.
 
-        [ ] Unit Test: Click "Fetch Data" with NetworkError.
+        [X] Unit Test: Click "Fetch Data" with NetworkError.
 
-        [ ] Unit Test: Verify status bar messages are correct for each scenario.
+        [X] Unit Test: Verify status bar messages are correct for each scenario.
 
 Chunk 4: Display General Book Information (Prompts 4.1 - 4.3)
 

@@ -79,13 +79,24 @@ class ApiClient:
             if "data" in response_data and "book" in response_data["data"]:
                 return response_data["data"]["book"]
             else:
-                error_detail = response_data.get("errors", "Unknown processing error")
+                graphql_errors = response_data.get("errors")
+                if graphql_errors and isinstance(graphql_errors, list):
+                    for err in graphql_errors:
+                        # Check for specific auth-related error codes or messages
+                        err_extensions = err.get("extensions", {})
+                        err_code = err_extensions.get("code")
+                        err_message = err.get("message", "").lower()
+                        if err_code == 'invalid-headers' or 'token' in err_message or 'auth' in err_message:
+                            logger.error(f"Authentication error in GraphQL response for book ID {book_id}: {graphql_errors}")
+                            raise ApiAuthError(f"Authentication failed: {err.get('message', 'Invalid token or headers')}")
+                    # If no specific auth error identified, raise as processing error
+                    first_error_message = graphql_errors[0].get("message", "Unknown GraphQL error")
+                    raise ApiProcessingError(f"GraphQL error in response: {first_error_message}")
+                # Fallback for unexpected structure without a clear 'errors' list
                 logger.warning(
-                    f"GraphQL error or unexpected response structure for book ID {book_id}: {error_detail}"
+                    f"Unexpected response structure for book ID {book_id}: {response_data}"
                 )
-                # Include the first error message if available
-                first_error_message = error_detail[0].get("message") if isinstance(error_detail, list) and error_detail else str(error_detail)
-                raise ApiProcessingError(f"GraphQL error in response: {first_error_message}")
+                raise ApiProcessingError("Unexpected API response structure.")
         except requests.exceptions.HTTPError as http_err:
             # Check if the response object and status_code exist
             if http_err.response is not None and http_err.response.status_code == 404:

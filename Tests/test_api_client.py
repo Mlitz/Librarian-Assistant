@@ -291,5 +291,48 @@ class TestApiClient(unittest.TestCase):
         mock_post.assert_called_once()
         mock_token_manager.load_token.assert_called_once()
 
+    @unittest.mock.patch('librarian_assistant.api_client.requests.post')
+    def test_get_book_by_id_graphql_invalid_headers_error_raises_auth_error(self, mock_post):
+        """
+        Tests that get_book_by_id raises ApiAuthError if the 200 OK response
+        contains a GraphQL 'errors' array with code 'invalid-headers'.
+        """
+        from librarian_assistant.api_client import ApiClient
+        from librarian_assistant.config_manager import ConfigManager
+
+        mock_token_manager = MagicMock(spec=ConfigManager)
+        mock_token_manager.load_token.return_value = "test_bearer_token" # Token is present but API deems it malformed
+        
+        client = ApiClient(base_url="https://api.hardcover.app/v1/graphql", token_manager=mock_token_manager)
+
+        book_id_to_fetch = 25 # Using the ID from your example
+
+        # Simulate a 200 OK response with a GraphQL 'invalid-headers' error
+        graphql_invalid_header_error_response = {
+            "errors": [
+                {
+                    "message": "Malformed Authorization header",
+                    "extensions": {"path": "$", "code": "invalid-headers"}
+                }
+            ]
+        }
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = graphql_invalid_header_error_response
+        mock_response.raise_for_status.return_value = None 
+        mock_post.return_value = mock_response
+
+        # Assert that ApiAuthError is raised
+        with self.assertRaises(ApiAuthError) as context:
+            client.get_book_by_id(book_id_to_fetch)
+        
+        # Check the message of the raised exception
+        self.assertIn("Malformed Authorization header", str(context.exception))
+        self.assertIn("Authentication failed", str(context.exception))
+        
+        mock_post.assert_called_once()
+        mock_token_manager.load_token.assert_called_once()
+
 if __name__ == '__main__':
     unittest.main()

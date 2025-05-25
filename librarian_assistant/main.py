@@ -1,8 +1,7 @@
 # ABOUTME: This file is the main entry point for the Librarian-Assistant application.
 # ABOUTME: It defines the main window and initializes the application.
-
 import sys
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QTabWidget, QWidget, QLineEdit, 
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QTabWidget, QWidget, QLineEdit, QTextEdit, QTableWidget, QTableWidgetItem,
                              QVBoxLayout, QLabel, QGroupBox, QStatusBar, QPushButton)
 from PyQt5.QtGui import QIntValidator, QValidator # Import QIntValidator and QValidator
 from PyQt5.QtCore import Qt # For dialog results, though not directly used in this snippet
@@ -11,10 +10,16 @@ from PyQt5.QtCore import Qt # For dialog results, though not directly used in th
 from librarian_assistant.config_manager import ConfigManager
 # Import TokenDialog for Prompt 2.2
 from librarian_assistant.token_dialog import TokenDialog
+# Import ApiClient for Prompt 3.3
+from librarian_assistant.api_client import ApiClient
+# Import custom exceptions for Prompt 3.3
+from librarian_assistant.exceptions import ApiException, ApiNotFoundError, ApiAuthError, NetworkError, ApiProcessingError
 
 import logging
 logger = logging.getLogger(__name__)
 
+# Constants
+HARDCOVER_API_BASE_URL = "https://api.hardcover.app/v1/graphql"
 
 class MainWindow(QMainWindow):
     """
@@ -26,6 +31,10 @@ class MainWindow(QMainWindow):
         self.resize(800, 600)
 
         self.config_manager = ConfigManager()
+        self.api_client = ApiClient(
+            base_url=HARDCOVER_API_BASE_URL,
+            token_manager=self.config_manager
+        )
 
         self.tab_widget = QTabWidget()
         self.setCentralWidget(self.tab_widget)
@@ -68,14 +77,35 @@ class MainWindow(QMainWindow):
 
         self.book_info_area = QGroupBox("General Book Information Area")
         self.book_info_area.setObjectName("bookInfoArea")
-        info_layout = QVBoxLayout(self.book_info_area)
-        info_layout.addWidget(QLabel("Placeholder for general book information"))
+        self.info_layout = QVBoxLayout(self.book_info_area) # Store layout for easy access
+
+        # Add specific widgets for book information - these will be populated later
+        self.book_title_label = QLabel("Title: Not Fetched")
+        self.book_title_label.setObjectName("bookTitleLabel")
+        self.info_layout.addWidget(self.book_title_label)
+
+        self.book_authors_label = QLabel("Authors: Not Fetched")
+        self.book_authors_label.setObjectName("bookAuthorsLabel")
+        self.info_layout.addWidget(self.book_authors_label)
+
+        self.book_description_text_edit = QTextEdit("Description: Not Fetched")
+        self.book_description_text_edit.setObjectName("bookDescriptionTextEdit")
+        self.book_description_text_edit.setReadOnly(True)
+        self.info_layout.addWidget(self.book_description_text_edit)
+
+        self.book_cover_label = QLabel("Cover URL: Not Fetched")
+        self.book_cover_label.setObjectName("bookCoverLabel")
+        self.info_layout.addWidget(self.book_cover_label)
+
         main_view_layout.addWidget(self.book_info_area)
 
         self.editions_table_area = QGroupBox("Editions Table Area")
         self.editions_table_area.setObjectName("editionsTableArea")
-        table_layout = QVBoxLayout(self.editions_table_area)
-        table_layout.addWidget(QLabel("Placeholder for editions table"))
+        self.editions_layout = QVBoxLayout(self.editions_table_area) # Store layout
+        
+        self.editions_table_widget = QTableWidget()
+        self.editions_table_widget.setObjectName("editionsTableWidget")
+        self.editions_layout.addWidget(self.editions_table_widget)
         main_view_layout.addWidget(self.editions_table_area)
 
         main_view_layout.setStretchFactor(self.api_input_area, 0)
@@ -146,14 +176,115 @@ class MainWindow(QMainWindow):
         Handles the "Fetch Data" button click.
         Logs the current Book ID and token status.
         """
-        book_id = self.book_id_line_edit.text()
-        token = self.config_manager.load_token()
+        book_id_str = self.book_id_line_edit.text()
+        if not book_id_str:
+            self.status_bar.showMessage("Book ID cannot be empty. Please enter a valid numerical Book ID.")
+            logger.warning("Fetch Data clicked with empty Book ID.")
+            return
 
-        token_status_message = "Set" if token else "Not Set"
-        
-        logger.info(
-            f"Fetch Data clicked. Book ID: '{book_id}'. Token status: {token_status_message}."
-        )
+        # The QIntValidator ensures book_id_str is numerical if not empty.
+        # We still need to convert it to an int for the ApiClient.
+        try:
+            book_id_int = int(book_id_str)
+        except ValueError:
+            # This case should ideally not be reached if QIntValidator and _on_book_id_text_changed work perfectly,
+            # but as a safeguard:
+            self.status_bar.showMessage("Invalid Book ID format. Please enter a numerical Book ID.")
+            logger.error(f"Fetch Data clicked with non-integer Book ID that bypassed validation: {book_id_str}")
+            return
+
+        # Clear previous data before fetching new data
+        self._clear_layout(self.book_info_area.layout())
+        self._clear_layout(self.editions_table_area.layout())
+        # Add placeholder labels back after clearing, or handle UI population directly
+        # For now, we'll just clear. The population step will add new widgets.
+        # If we want placeholders when no data is present, that logic would go elsewhere or be part of error handling.
+
+        logger.info(f"Attempting to fetch data for Book ID: {book_id_int}")
+        # Call the ApiClient (actual API call will happen here)
+        try:
+            book_data = self.api_client.get_book_by_id(book_id_int)
+
+            if book_data:
+                # Clear previous data now that we know the fetch was successful
+                # (Moved clearing here to only clear on successful fetch attempt that returns data)
+                # Actually, it's better to clear *before* attempting to populate,
+                # so the previous change of clearing before the try block is fine.
+                # The test expects clearing to happen if book_data is returned.
+
+                self.status_bar.showMessage(f"Book data fetched successfully for ID {book_id_str}.")
+                logger.info(f"Successfully fetched data for Book ID {book_id_int}: {book_data.get('title', 'N/A')}")
+                
+                # Re-create and populate the General Book Information Area widgets
+                # Title
+                self.book_title_label = QLabel(f"Title: {book_data.get('title', 'N/A')}")
+                self.book_title_label.setObjectName("bookTitleLabel")
+                self.info_layout.addWidget(self.book_title_label)
+
+                # Authors
+                authors_list = book_data.get('authors', [])
+                authors_str = ", ".join([author.get('name', 'Unknown') for author in authors_list if isinstance(author, dict)])
+                self.book_authors_label = QLabel(f"Authors: {authors_str if authors_str else 'N/A'}")
+                self.book_authors_label.setObjectName("bookAuthorsLabel")
+                self.info_layout.addWidget(self.book_authors_label)
+
+                # Description
+                self.book_description_text_edit = QTextEdit(book_data.get('description', 'N/A'))
+                self.book_description_text_edit.setObjectName("bookDescriptionTextEdit")
+                self.book_description_text_edit.setReadOnly(True)
+                self.info_layout.addWidget(self.book_description_text_edit)
+                
+                # Cover URL
+                self.book_cover_label = QLabel(f"Cover URL: {book_data.get('cover', {}).get('url', 'N/A')}")
+                self.book_cover_label.setObjectName("bookCoverLabel")
+                self.info_layout.addWidget(self.book_cover_label)
+
+                # Populate the Editions Table
+                editions = book_data.get('editions', [])
+                if editions:
+                    headers = ["Title", "Pages", "Published", "ISBN10", "ISBN13", "Language", "Cover URL"]
+                    self.editions_table_widget.setColumnCount(len(headers))
+                    self.editions_table_widget.setHorizontalHeaderLabels(headers)
+                    self.editions_table_widget.setRowCount(len(editions))
+
+                    for row, edition_data in enumerate(editions):
+                        self.editions_table_widget.setItem(row, 0, QTableWidgetItem(edition_data.get('title', 'N/A')))
+                        self.editions_table_widget.setItem(row, 1, QTableWidgetItem(str(edition_data.get('pageCount', 'N/A'))))
+                        self.editions_table_widget.setItem(row, 2, QTableWidgetItem(edition_data.get('publishedDate', 'N/A')))
+                        self.editions_table_widget.setItem(row, 3, QTableWidgetItem(edition_data.get('isbn10', 'N/A')))
+                        self.editions_table_widget.setItem(row, 4, QTableWidgetItem(edition_data.get('isbn13', 'N/A')))
+                        language_name = edition_data.get('language', {}).get('name', 'N/A')
+                        self.editions_table_widget.setItem(row, 5, QTableWidgetItem(language_name))
+                        cover_url = edition_data.get('cover', {}).get('url', 'N/A')
+                        self.editions_table_widget.setItem(row, 6, QTableWidgetItem(cover_url))
+                    
+                    self.editions_table_widget.resizeColumnsToContents() # Adjust column widths
+                else:
+                    # Clear table if no editions data
+                    self.editions_table_widget.setRowCount(0)
+                    self.editions_table_widget.setColumnCount(0)
+            else:
+                # This case might occur if ApiClient returns None for reasons other than exceptions
+                # (e.g., no token, which is handled inside ApiClient for now)
+                self.status_bar.showMessage(f"No data returned for Book ID {book_id_str}.")
+                logger.warning(f"No data returned by ApiClient for Book ID {book_id_int}, but no exception was raised.")
+        except ApiNotFoundError as e:
+            self.status_bar.showMessage(f"Error fetching data: {e}")
+            logger.warning(f"API_CLIENT_ERROR - ApiNotFoundError for Book ID {book_id_int}: {e}")
+        except ApiException as e: # Catch other ApiClient specific exceptions
+            self.status_bar.showMessage(f"Error fetching data: {e}")
+            logger.error(f"API_CLIENT_ERROR - An API exception occurred for Book ID {book_id_int}: {e}")
+
+    def _clear_layout(self, layout: QVBoxLayout | None):
+        """
+        Removes all widgets from the given layout.
+        """
+        if layout is not None:
+            while layout.count():
+                item = layout.takeAt(0)
+                widget = item.widget()
+                if widget is not None:
+                    widget.deleteLater()
 
 def main():
     """
