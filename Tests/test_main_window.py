@@ -254,6 +254,7 @@ class TestMainWindow(unittest.TestCase):
         # as per spec.md and Appendix A (GraphQL query).
         mock_book_data = {
             "id": "123",
+            "slug": "the-great-test-book-slug",
             "title": "The Great Test Book",
             # Authors come from the 'contributions' array
             "contributions": [
@@ -261,17 +262,28 @@ class TestMainWindow(unittest.TestCase):
                 {"author": {"name": "Author Two"}}
             ],
             "description": "A truly captivating description of testing.",
-            # The cover URL for general display would likely come from default_cover_edition
+            "editions_count": 5,
+            "default_audio_edition": {"id": "aud001", "edition_format": "Audiobook"},
             "default_cover_edition": {
+                "id": "cov001", 
+                "edition_format": "Hardcover",
                 "image": {"url": "http://example.com/great_test_book_cover.jpg"}
-            }
-            # Add other fields from books[0] like slug, editions_count if they are
-            # displayed in this specific part of the UI and tested here.
+            },
+            "default_ebook_edition": {"id": "ebk001", "edition_format": "E-book"},
+            "default_physical_edition": {"id": "phy001", "edition_format": "Paperback"}
         }
         mock_api_get_book_by_id.return_value = mock_book_data
 
         book_id_line_edit = self.window.findChild(QLineEdit, "bookIdLineEdit")
         fetch_data_button = self.window.findChild(QPushButton, "fetchDataButton")
+        
+        # Ensure book_info_area is available for parentWidget checks
+        self.window.book_info_area = self.window.findChild(QGroupBox, "bookInfoArea")
+        self.assertIsNotNone(self.window.book_info_area, "bookInfoArea QGroupBox not found.")
+
+        # Ensure default_editions_group_box is available for parentWidget checks
+        self.window.default_editions_group_box = self.window.findChild(QGroupBox, "defaultEditionsGroupBox")
+        self.assertIsNotNone(self.window.default_editions_group_box, "defaultEditionsGroupBox QGroupBox not found.")
 
         book_id_line_edit.setText("123")
         fetch_data_button.click()
@@ -282,16 +294,29 @@ class TestMainWindow(unittest.TestCase):
         self.assertEqual(self.window.book_title_label.text(), "Title: The Great Test Book")
         self.assertEqual(self.window.book_title_label.parentWidget(), self.window.book_info_area, "Title label not in book info area.")
 
+        self.assertIsNotNone(self.window.book_slug_label, "Book slug QLabel attribute not updated.")
+        self.assertEqual(self.window.book_slug_label.text(), "Slug: the-great-test-book-slug")
+        self.assertEqual(self.window.book_slug_label.parentWidget(), self.window.book_info_area, "Slug label not in book info area.")
+
         self.assertIsNotNone(self.window.book_authors_label, "Book authors QLabel attribute not updated.")
         # Assuming authors are joined by ", " in main.py
         self.assertEqual(self.window.book_authors_label.text(), "Authors: Author One, Author Two")
         self.assertEqual(self.window.book_authors_label.parentWidget(), self.window.book_info_area, "Authors label not in book info area.")
 
+        self.assertIsNotNone(self.window.book_id_queried_label, "Book ID (queried) QLabel attribute not updated.")
+        self.assertEqual(self.window.book_id_queried_label.text(), "Book ID (Queried): 123") # From input
+        self.assertEqual(self.window.book_id_queried_label.parentWidget(), self.window.book_info_area, "Book ID (queried) label not in book info area.")
+
+        self.assertIsNotNone(self.window.book_total_editions_label, "Total editions QLabel attribute not updated.")
+        self.assertEqual(self.window.book_total_editions_label.text(), "Total Editions: 5")
+        self.assertEqual(self.window.book_total_editions_label.parentWidget(), self.window.book_info_area, "Total editions label not in book info area.")
+
+
         # Test for the new QLabel based description display
         self.assertIsNotNone(self.window.book_description_label, "Book description QLabel attribute not updated.")
         
         full_mock_description = "A truly captivating description of testing."
-        MAX_DESC_CHARS = 150 # Must match the constant in main.py
+        MAX_DESC_CHARS = 500 # Must match the constant in main.py
         
         if len(full_mock_description) > MAX_DESC_CHARS:
             expected_display_text = f"Description: {full_mock_description[:MAX_DESC_CHARS]}..."
@@ -308,6 +333,27 @@ class TestMainWindow(unittest.TestCase):
         # This assumes book_cover_label displays the URL as text.
         self.assertEqual(self.window.book_cover_label.text(), "Cover URL: http://example.com/great_test_book_cover.jpg")
         self.assertEqual(self.window.book_cover_label.parentWidget(), self.window.book_info_area, "Cover label not in book info area.")
+
+        # Check Default Editions GroupBox and its labels
+        self.assertIsNotNone(self.window.default_editions_group_box, "Default Editions GroupBox not found after fetch.")
+        self.assertEqual(self.window.default_editions_group_box.title(), "Default Editions")
+        self.assertEqual(self.window.default_editions_group_box.parentWidget(), self.window.book_info_area, "Default Editions GroupBox not in book info area.")
+
+        self.assertIsNotNone(self.window.default_audio_label, "Default audio label not updated.")
+        self.assertEqual(self.window.default_audio_label.text(), "Default Audio Edition: Audiobook (ID: aud001)")
+        self.assertEqual(self.window.default_audio_label.parentWidget(), self.window.default_editions_group_box)
+
+        self.assertIsNotNone(self.window.default_cover_label_info, "Default cover label info not updated.")
+        self.assertEqual(self.window.default_cover_label_info.text(), "Default Cover Edition: Hardcover (ID: cov001)")
+        self.assertEqual(self.window.default_cover_label_info.parentWidget(), self.window.default_editions_group_box)
+
+        self.assertIsNotNone(self.window.default_ebook_label, "Default ebook label not updated.")
+        self.assertEqual(self.window.default_ebook_label.text(), "Default E-book Edition: E-book (ID: ebk001)")
+        self.assertEqual(self.window.default_ebook_label.parentWidget(), self.window.default_editions_group_box)
+
+        self.assertIsNotNone(self.window.default_physical_label, "Default physical label not updated.")
+        self.assertEqual(self.window.default_physical_label.text(), "Default Physical Edition: Paperback (ID: phy001)")
+        self.assertEqual(self.window.default_physical_label.parentWidget(), self.window.default_editions_group_box)
         
     @patch.object(ApiClient, 'get_book_by_id')
     def test_fetch_data_success_populates_editions_table(self, mock_api_get_book_by_id):
@@ -434,6 +480,57 @@ class TestMainWindow(unittest.TestCase):
         # Check the main book cover URL label (which is separate from default editions info)
         self.assertIsNotNone(self.window.book_cover_label, "Book Cover URL QLabel not found.")
         self.assertEqual(self.window.book_cover_label.text(), "Cover URL: Not Fetched")
+
+    @patch.object(ApiClient, 'get_book_by_id')
+    def test_fetch_data_populates_book_info_with_null_defaults(self, mock_api_get_book_by_id):
+        """
+        Test that "N/A" is displayed for fields that are null or missing in the API response.
+        """
+        mock_book_data_with_nulls = {
+            "id": "456", # Still need an ID for the book itself
+            "title": "Book With Missing Info",
+            "slug": None, # Test None slug
+            "contributions": None, # Test None contributions
+            "description": None, # Test None description
+            "editions_count": None, # Test None editions_count
+            "default_audio_edition": None,
+            "default_cover_edition": None, # This will also make cover URL N/A
+            "default_ebook_edition": None,
+            "default_physical_edition": None
+        }
+        mock_api_get_book_by_id.return_value = mock_book_data_with_nulls
+
+        book_id_line_edit = self.window.findChild(QLineEdit, "bookIdLineEdit")
+        fetch_data_button = self.window.findChild(QPushButton, "fetchDataButton")
+
+        book_id_line_edit.setText("456")
+        fetch_data_button.click()
+
+        # Check labels for "N/A"
+        self.assertEqual(self.window.book_title_label.text(), "Title: Book With Missing Info") # Title is present
+
+        self.assertEqual(self.window.book_slug_label.text(), "Slug: N/A")
+        self.assertEqual(self.window.book_authors_label.text(), "Authors: N/A")
+        self.assertEqual(self.window.book_id_queried_label.text(), "Book ID (Queried): 456") # From input
+        self.assertEqual(self.window.book_total_editions_label.text(), "Total Editions: N/A")
+        
+        # Description label
+        self.assertEqual(self.window.book_description_label.text(), "Description: N/A")
+        self.assertEqual(self.window.book_description_label.toolTip(), "", "Tooltip should be empty for N/A description")
+
+        # Default Editions
+        self.assertEqual(self.window.default_audio_label.text(), "Default Audio Edition: N/A")
+        self.assertEqual(self.window.default_cover_label_info.text(), "Default Cover Edition: N/A")
+        self.assertEqual(self.window.default_ebook_label.text(), "Default E-book Edition: N/A")
+        self.assertEqual(self.window.default_physical_label.text(), "Default Physical Edition: N/A")
+
+        # Main Cover URL Label (derived from default_cover_edition)
+        self.assertEqual(self.window.book_cover_label.text(), "Cover URL: N/A")
+
+        # Check status bar for success message, as the fetch itself was "successful"
+        # even if data fields were null.
+        expected_status_message = "Book data fetched successfully for ID 456."
+        self.assertEqual(self.window.status_bar.currentMessage(), expected_status_message)
 
 if __name__ == '__main__':
     unittest.main()

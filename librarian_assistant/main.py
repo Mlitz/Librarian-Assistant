@@ -268,12 +268,13 @@ class MainWindow(QMainWindow):
                 self.info_layout.addWidget(self.book_title_label)
 
                 # Populate Slug
-                self.book_slug_label = QLabel(f"Slug: {book_data.get('slug', 'N/A')}")
+                slug_text = book_data.get('slug')
+                self.book_slug_label = QLabel(f"Slug: {slug_text if slug_text is not None else 'N/A'}")
                 self.book_slug_label.setObjectName("bookSlugLabel")
                 self.info_layout.addWidget(self.book_slug_label)
 
                 # Book ID
-                self.book_id_queried_label = QLabel(f"Book ID: {book_id_int}")
+                self.book_id_queried_label = QLabel(f"Book ID (Queried): {book_id_int}")
                 self.book_id_queried_label.setObjectName("bookIdQueriedLabel")
                 self.info_layout.addWidget(self.book_id_queried_label)
 
@@ -298,16 +299,19 @@ class MainWindow(QMainWindow):
                 self.info_layout.addWidget(self.book_authors_label)
                 
                 # Total Editions Count
-                editions_count_val = book_data.get('editions_count', 'N/A')
+                editions_count_raw = book_data.get('editions_count')
+                editions_count_val = editions_count_raw if editions_count_raw is not None else 'N/A'
                 self.book_total_editions_label = QLabel(f"Total Editions: {editions_count_val}")
                 self.book_total_editions_label.setObjectName("bookTotalEditionsLabel")
                 self.info_layout.addWidget(self.book_total_editions_label)
 
                 # Description with truncation and tooltip
-                full_description = book_data.get('description', 'N/A')
+                # Ensure full_description is a string, defaulting to "N/A" if None or missing.
+                full_description_raw = book_data.get('description')
+                full_description = full_description_raw if full_description_raw is not None else "N/A"
                 MAX_DESC_CHARS = 500 # Define max characters for display
                 
-                if len(full_description) > MAX_DESC_CHARS:
+                if full_description != "N/A" and len(full_description) > MAX_DESC_CHARS:
                     display_desc_text = full_description[:MAX_DESC_CHARS] + "..."
                     tooltip_desc_text = full_description
                 else:

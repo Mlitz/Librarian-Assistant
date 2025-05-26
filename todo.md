@@ -208,39 +208,39 @@ Chunk 3: Basic API Interaction & Book ID Input (Prompts 3.1 - 3.3)
 
 Chunk 4: Display General Book Information (Prompts 4.1 - 4.3)
 
-    [ ] Prompt 4.1: Implement UI Elements for General Book Information
+    [x] Prompt 4.1: Implement UI Elements for General Book Information
 
-        [ ] In "General Book Information Area":
+        [x] In "General Book Information Area":
 
-            [ ] Add QLabel pairs for: Book Title, Book Slug, Author(s), Book ID (queried), Total Editions Count.
+            [x] Add QLabel pairs for: Book Title, Book Slug, Author(s), Book ID (queried), Total Editions Count.
 
-            [ ] Add QTextEdit (read-only) for Book Description.
+            [x] Add QTextEdit (read-only) for Book Description.
 
-        [ ] Add "Default Editions" sub-section/group box with labels for: Default Audio, Cover, E-book, Physical editions (format + ID).
+        [x] Add "Default Editions" sub-section/group box with labels for: Default Audio, Cover, E-book, Physical editions (format + ID).
 
-        [ ] Initialize all value labels/TextEdit to "N/A" or empty.
+        [x] Initialize all value labels/TextEdit to "N/A" or empty.
 
-        [ ] Unit Test: UI elements created and initially empty/"N/A".
+        [x] Unit Test: UI elements created and initially empty/"N/A".
 
-    [ ] Prompt 4.2: Populate General Book Information UI from API Response
+    [X] Prompt 4.2: Populate General Book Information UI from API Response
 
-        [ ] On successful api_client.fetch_book_data:
+        [X] On successful api_client.fetch_book_data:
 
-            [ ] Parse books[0] from response.
+            [X] Parse books[0] from response.
 
-            [ ] Populate UI: Title, Slug, Author(s) (handle empty contributions), Description, Book ID, Total Editions Count.
+            [X] Populate UI: Title, Slug, Author(s) (handle empty contributions), Description, Book ID, Total Editions Count.
 
-            [ ] Populate Default Editions: edition_format and id (e.g., "Audiobook (ID: 12345)"). Display "N/A" if null.
+            [X] Populate Default Editions: edition_format and id (e.g., "Audiobook (ID: 12345)"). Display "N/A" if null.
 
-            [ ] Display "N/A" for any other null/missing fields.
+            [X] Display "N/A" for any other null/missing fields.
 
-        [ ] Unit Test: Mock ApiClient with structured response.
+        [X] Unit Test: Mock ApiClient with structured response.
 
-        [ ] Unit Test: Trigger fetch, verify all general info UI populated correctly.
+        [X] Unit Test: Trigger fetch, verify all general info UI populated correctly.
 
-        [ ] Unit Test: Mock response with null default editions.
+        [X] Unit Test: Mock response with null default editions.
 
-        [ ] Unit Test: Mock response with empty/null contributions.
+        [X] Unit Test: Mock response with empty/null contributions.
 
     [ ] Prompt 4.3: Make Book Slug & Default Edition IDs Clickable
 
