@@ -1,6 +1,7 @@
 # ABOUTME: This file is the main entry point for the Librarian-Assistant application.
 # ABOUTME: It defines the main window and initializes the application.
 import sys
+from datetime import datetime
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QTabWidget, QWidget, QLineEdit, QTableWidget, QTableWidgetItem, QScrollArea,
                              QVBoxLayout, QLabel, QGroupBox, QPushButton)
 from PyQt5.QtGui import QIntValidator, QValidator
@@ -79,6 +80,9 @@ class MainWindow(QMainWindow):
         super().__init__(parent)
         self.setWindowTitle("Librarian-Assistant - Hardcover.app Edition Viewer")
         self.resize(800, 600)
+        
+        # Constants for table display
+        self.MAX_CELL_TEXT_LENGTH = 50  # Maximum characters before truncation
 
         self.config_manager = ConfigManager()
         self.api_client = ApiClient(
@@ -305,12 +309,13 @@ class MainWindow(QMainWindow):
             book_data = self.api_client.get_book_by_id(book_id_int)
 
             if book_data:
-                # Clear previous data from info_layout and editions_layout before fetching new data
+                # Clear previous data from info_layout before fetching new data
                 # This ensures old data is removed even if the new fetch fails or returns no data.
                 # We will re-add widgets as needed.
                 self._clear_layout(self.info_layout) # Clear general info area
-                self._clear_layout(self.editions_layout) # Clear editions table area
-                self.editions_layout.addWidget(self.editions_table_widget) # Re-add table
+                # Don't clear editions_layout - just clear the table data
+                self.editions_table_widget.setRowCount(0)  # Clear existing rows
+                self.editions_table_widget.setColumnCount(0)  # Clear existing columns
                 self.status_bar.showMessage(f"Book data fetched successfully for ID {book_id_str}.")
                 logger.info(f"Successfully fetched data for Book ID {book_id_int}: {book_data.get('title', 'N/A')}")
                 logger.info(f"Complete book_data received by main.py for Book ID {book_id_int}: {book_data}")
@@ -457,23 +462,140 @@ class MainWindow(QMainWindow):
                 # Populate the Editions Table
                 editions = book_data.get('editions', [])
                 if editions:
-                    headers = ["Title", "Pages", "Published", "ISBN10", "ISBN13", "Language", "Cover URL"]
+                    # Define headers according to spec.md section 2.4.1 (static columns only for now)
+                    headers = [
+                        "id", "score", "title", "subtitle", "Cover Image?", 
+                        "isbn_10", "isbn_13", "asin", "Reading Format", "pages", 
+                        "Duration", "edition_format", "edition_information", 
+                        "release_date", "Publisher", "Language", "Country"
+                    ]
                     self.editions_table_widget.setColumnCount(len(headers))
                     self.editions_table_widget.setHorizontalHeaderLabels(headers)
                     self.editions_table_widget.setRowCount(len(editions))
 
                     for row, edition_data in enumerate(editions):
-                        self.editions_table_widget.setItem(row, 0, QTableWidgetItem(edition_data.get('title', 'N/A')))
-                        self.editions_table_widget.setItem(row, 1, QTableWidgetItem(str(edition_data.get('pageCount', 'N/A'))))
-                        self.editions_table_widget.setItem(row, 2, QTableWidgetItem(edition_data.get('publishedDate', 'N/A')))
-                        self.editions_table_widget.setItem(row, 3, QTableWidgetItem(edition_data.get('isbn10', 'N/A')))
-                        self.editions_table_widget.setItem(row, 4, QTableWidgetItem(edition_data.get('isbn13', 'N/A')))
-                        language_name = edition_data.get('language', {}).get('name', 'N/A')
-                        self.editions_table_widget.setItem(row, 5, QTableWidgetItem(language_name))
-                        cover_url = edition_data.get('cover', {}).get('url', 'N/A')
-                        self.editions_table_widget.setItem(row, 6, QTableWidgetItem(cover_url))
+                        col = 0
+                        
+                        # id
+                        self.editions_table_widget.setItem(row, col, QTableWidgetItem(str(edition_data.get('id', 'N/A'))))
+                        col += 1
+                        
+                        # score
+                        score_value = edition_data.get('score')
+                        score_item = QTableWidgetItem(str(score_value) if score_value is not None else 'N/A')
+                        # Store numeric value for sorting
+                        if score_value is not None:
+                            score_item.setData(Qt.UserRole, score_value)
+                        self.editions_table_widget.setItem(row, col, score_item)
+                        col += 1
+                        
+                        # title (may be long, use truncation)
+                        title_item = self._create_table_item_with_tooltip(edition_data.get('title', 'N/A'))
+                        self.editions_table_widget.setItem(row, col, title_item)
+                        col += 1
+                        
+                        # subtitle (may be long, use truncation)
+                        subtitle = edition_data.get('subtitle')
+                        subtitle_item = self._create_table_item_with_tooltip(subtitle if subtitle else 'N/A')
+                        self.editions_table_widget.setItem(row, col, subtitle_item)
+                        col += 1
+                        
+                        # Cover Image?
+                        image_data = edition_data.get('image')
+                        has_cover = bool(image_data and image_data.get('url'))
+                        self.editions_table_widget.setItem(row, col, QTableWidgetItem("Yes" if has_cover else "No"))
+                        col += 1
+                        
+                        # isbn_10
+                        isbn_10 = edition_data.get('isbn_10')
+                        self.editions_table_widget.setItem(row, col, QTableWidgetItem(isbn_10 if isbn_10 else 'N/A'))
+                        col += 1
+                        
+                        # isbn_13
+                        isbn_13 = edition_data.get('isbn_13')
+                        self.editions_table_widget.setItem(row, col, QTableWidgetItem(isbn_13 if isbn_13 else 'N/A'))
+                        col += 1
+                        
+                        # asin
+                        asin = edition_data.get('asin')
+                        self.editions_table_widget.setItem(row, col, QTableWidgetItem(asin if asin else 'N/A'))
+                        col += 1
+                        
+                        # Reading Format (transform reading_format_id)
+                        reading_format_id = edition_data.get('reading_format_id')
+                        reading_format_map = {1: "Physical Book", 2: "Audiobook", 4: "E-Book"}
+                        reading_format = reading_format_map.get(reading_format_id, f"N/A" if reading_format_id is None else str(reading_format_id))
+                        self.editions_table_widget.setItem(row, col, QTableWidgetItem(reading_format))
+                        col += 1
+                        
+                        # pages
+                        pages_value = edition_data.get('pages')
+                        self.editions_table_widget.setItem(row, col, QTableWidgetItem(str(pages_value) if pages_value is not None else 'N/A'))
+                        col += 1
+                        
+                        # Duration (audio_seconds converted to HH:MM:SS)
+                        audio_seconds = edition_data.get('audio_seconds')
+                        if audio_seconds is not None and audio_seconds > 0:
+                            hours = audio_seconds // 3600
+                            minutes = (audio_seconds % 3600) // 60
+                            seconds = audio_seconds % 60
+                            duration_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+                        else:
+                            duration_str = "N/A"
+                        self.editions_table_widget.setItem(row, col, QTableWidgetItem(duration_str))
+                        col += 1
+                        
+                        # edition_format
+                        edition_format = edition_data.get('edition_format')
+                        self.editions_table_widget.setItem(row, col, QTableWidgetItem(edition_format if edition_format else 'N/A'))
+                        col += 1
+                        
+                        # edition_information (may be long, use truncation)
+                        edition_info_item = self._create_table_item_with_tooltip(edition_data.get('edition_information', 'N/A'))
+                        self.editions_table_widget.setItem(row, col, edition_info_item)
+                        col += 1
+                        
+                        # release_date (format as MM/DD/YYYY)
+                        release_date = edition_data.get('release_date')
+                        if release_date:
+                            try:
+                                # Assuming format is YYYY-MM-DD from API
+                                date_obj = datetime.strptime(release_date, '%Y-%m-%d')
+                                formatted_date = date_obj.strftime('%m/%d/%Y')
+                            except:
+                                formatted_date = release_date  # Use as-is if parsing fails
+                        else:
+                            formatted_date = "N/A"
+                        self.editions_table_widget.setItem(row, col, QTableWidgetItem(formatted_date))
+                        col += 1
+                        
+                        # Publisher
+                        publisher_name = edition_data.get('publisher', {}).get('name', 'N/A') if edition_data.get('publisher') else 'N/A'
+                        self.editions_table_widget.setItem(row, col, QTableWidgetItem(publisher_name))
+                        col += 1
+                        
+                        # Language
+                        language_name = edition_data.get('language', {}).get('language', 'N/A') if edition_data.get('language') else 'N/A'
+                        self.editions_table_widget.setItem(row, col, QTableWidgetItem(language_name))
+                        col += 1
+                        
+                        # Country
+                        country_name = edition_data.get('country', {}).get('name', 'N/A') if edition_data.get('country') else 'N/A'
+                        self.editions_table_widget.setItem(row, col, QTableWidgetItem(country_name))
                     
-                    self.editions_table_widget.resizeColumnsToContents() # Adjust column widths
+                    # Enable sorting
+                    self.editions_table_widget.setSortingEnabled(True)
+                    
+                    # Default sort by score column (descending)
+                    score_column = headers.index("score")
+                    self.editions_table_widget.sortItems(score_column, Qt.DescendingOrder)
+                    
+                    # Enable scrolling (should be enabled by default, but let's be explicit)
+                    self.editions_table_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+                    self.editions_table_widget.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+                    
+                    # Adjust column widths
+                    self.editions_table_widget.resizeColumnsToContents()
                 else:
                     # Clear table if no editions data
                     self.editions_table_widget.setRowCount(0)
@@ -497,6 +619,31 @@ class MainWindow(QMainWindow):
             webbrowser.open(url)
         else:
             logger.warning("Attempted to open an empty URL.")
+    
+    def _create_table_item_with_tooltip(self, text: str, max_length: int = None) -> QTableWidgetItem:
+        """
+        Creates a QTableWidgetItem with text truncation and tooltip for long content.
+        
+        Args:
+            text: The text to display
+            max_length: Maximum length before truncation (uses self.MAX_CELL_TEXT_LENGTH if None)
+            
+        Returns:
+            QTableWidgetItem with truncated text and full text in tooltip if needed
+        """
+        if max_length is None:
+            max_length = self.MAX_CELL_TEXT_LENGTH
+            
+        text = str(text) if text is not None else "N/A"
+        item = QTableWidgetItem(text)
+        
+        # Add tooltip for long text
+        if len(text) > max_length:
+            truncated_text = text[:max_length] + "..."
+            item.setText(truncated_text)
+            item.setToolTip(text)  # Full text in tooltip
+        
+        return item
 
     def _clear_layout(self, layout: QVBoxLayout | None):
         """

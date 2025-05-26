@@ -260,61 +260,61 @@ Chunk 4: Display General Book Information (Prompts 4.1 - 4.3)
 
 Phase 3: Editions Table - Basic Implementation
 
-    [ ] Table Widget Setup
+    [X] Table Widget Setup
 
-        [ ] Add QTableWidget to "Editions Table Area" in main.py.
+        [X] Add QTableWidget to "Editions Table Area" in main.py.
 
-    [ ] Static Column Definition (Non-Contributor Columns from spec.md 2.4.1)
+    [X] Static Column Definition (Non-Contributor Columns from spec.md 2.4.1)
 
-        [ ] Define headers: id, score, title, subtitle, Cover Image?, isbn_10, isbn_13, asin, Reading Format, pages, Duration, edition_format, edition_information, release_date, Publisher, Language, Country.
+        [X] Define headers: id, score, title, subtitle, Cover Image?, isbn_10, isbn_13, asin, Reading Format, pages, Duration, edition_format, edition_information, release_date, Publisher, Language, Country.
 
-        [ ] Set initial column headers in the QTableWidget.
+        [X] Set initial column headers in the QTableWidget.
 
-    [ ] Data Parsing & Transformation (Core Fields for Table)
+    [X] Data Parsing & Transformation (Core Fields for Table)
 
-        [ ] When API data is fetched, iterate through books[0].editions.
+        [X] When API data is fetched, iterate through books[0].editions.
 
-        [ ] For each edition, populate a new row in the table.
+        [X] For each edition, populate a new row in the table.
 
-        [ ] Transform reading_format_id: 1 -> "Physical Book", 2 -> "Audiobook", 4 -> "E-Book", Other/Null -> "N/A".
+        [X] Transform reading_format_id: 1 -> "Physical Book", 2 -> "Audiobook", 4 -> "E-Book", Other/Null -> "N/A".
 
-        [ ] Handle null values in any field by displaying "N/A".
+        [X] Handle null values in any field by displaying "N/A".
 
-        [ ] "Cover Image?": "Yes" if image.url is present, "No" otherwise.
+        [X] "Cover Image?": "Yes" if image.url is present, "No" otherwise.
 
-        [ ] audio_seconds to HH:MM:SS format; "N/A" if null/not applicable.
+        [X] audio_seconds to HH:MM:SS format; "N/A" if null/not applicable.
 
-        [ ] release_date to MM/DD/YYYY format; "N/A" if null.
+        [X] release_date to MM/DD/YYYY format; "N/A" if null.
 
-        [ ] Populate publisher.name, language.language, country.name, handling nulls.
+        [X] Populate publisher.name, language.language, country.name, handling nulls.
 
-    [ ] Default Sorting
+    [X] Default Sorting
 
-        [ ] Implement default sort by score column, descending, after data population.
+        [X] Implement default sort by score column, descending, after data population.
 
-        [ ] (May require making table items sortable, e.g. by subclassing QTableWidgetItem for numerical sort).
+        [X] (May require making table items sortable, e.g. by subclassing QTableWidgetItem for numerical sort).
 
-    [ ] Basic Table Customization
+    [X] Basic Table Customization
 
-        [ ] Ensure horizontal and vertical scrolling is enabled and functional.
+        [X] Ensure horizontal and vertical scrolling is enabled and functional.
 
-        [ ] Implement text truncation with ellipsis for overflowing cell content.
+        [X] Implement text truncation with ellipsis for overflowing cell content.
 
-        [ ] Add tooltips to display full text on hover for truncated cells.
+        [X] Add tooltips to display full text on hover for truncated cells.
 
-    [ ] Unit Tests for Basic Table
+    [X] Unit Tests for Basic Table
 
-        [ ] Test table creation and header setup.
+        [X] Test table creation and header setup.
 
-        [ ] Test population of table rows from mock API data.
+        [X] Test population of table rows from mock API data.
 
-        [ ] Test data transformations (reading format, dates, audio seconds, cover image).
+        [X] Test data transformations (reading format, dates, audio seconds, cover image).
 
-        [ ] Test "N/A" display for null/missing values.
+        [X] Test "N/A" display for null/missing values.
 
-        [ ] Test default sorting by score (descending).
+        [X] Test default sorting by score (descending).
 
-        [ ] Test text truncation and tooltip functionality (may require UI interaction testing or specific mocks).
+        [X] Test text truncation and tooltip functionality (may require UI interaction testing or specific mocks).
 
 Phase 4: Editions Table - Contributor Columns
 

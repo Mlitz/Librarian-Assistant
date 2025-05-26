@@ -359,35 +359,53 @@ class TestMainWindow(unittest.TestCase):
     def test_fetch_data_success_populates_editions_table(self, mock_api_get_book_by_id):
         """
         Test that a successful API call populates the Editions Table Area
-        with the fetched editions data.
+        with the fetched editions data according to spec.md section 2.4.1.
         """
-        # Sample book data with editions
+        # Sample book data with editions matching new spec
         mock_book_data = {
             "id": "123",
             "title": "The Great Test Book",
-            "authors": [{"name": "Author One"}],
+            "contributions": [{"author": {"name": "Author One"}}],
             "description": "A description.",
-            "cover": {"url": "http://example.com/cover.jpg"},
+            "editions_count": 2,
             "editions": [
                 {
                     "id": "ed1",
-                    "title": "First Edition",
-                    "pageCount": 300,
-                    "publishedDate": "2023-01-01",
-                    "isbn10": "1234567890",
-                    "isbn13": "9781234567890",
-                    "language": {"name": "English"},
-                    "cover": {"url": "http://example.com/ed1_cover.jpg"}
+                    "score": 95.5,
+                    "title": "First Edition with a very long title that should be truncated",
+                    "subtitle": "Premium Hardcover",
+                    "image": {"url": "http://example.com/ed1_cover.jpg"},
+                    "isbn_10": "1234567890",
+                    "isbn_13": "9781234567890",
+                    "asin": "B001234567",
+                    "reading_format_id": 1,  # Physical Book
+                    "pages": 300,
+                    "audio_seconds": None,
+                    "edition_format": "Hardcover",
+                    "edition_information": "First printing with author signature",
+                    "release_date": "2023-01-15",
+                    "publisher": {"name": "Test Publishers Inc."},
+                    "language": {"language": "English"},
+                    "country": {"name": "United States"}
                 },
                 {
                     "id": "ed2",
+                    "score": 88.0,
                     "title": "Second Edition",
-                    "pageCount": 320,
-                    "publishedDate": "2024-01-01",
-                    "isbn10": "0987654321",
-                    "isbn13": "9780987654321",
-                    "language": {"name": "French"},
-                    "cover": {"url": "http://example.com/ed2_cover.jpg"}
+                    "subtitle": None,
+                    "image": None,
+                    "isbn_10": None,
+                    "isbn_13": "9780987654321",
+                    "asin": None,
+                    "reading_format_id": 2,  # Audiobook
+                    "pages": None,
+                    "audio_seconds": 32400,  # 9 hours
+                    "edition_format": "Audiobook",
+                    "edition_information": None,
+                    "release_date": "2024-06-30",
+                    "publisher": {"name": "Audio House"},
+                    "language": {"language": "French"},
+                    "country": {"name": "Canada"}
                 }
             ]
         }
@@ -399,27 +417,69 @@ class TestMainWindow(unittest.TestCase):
         book_id_line_edit.setText("123")
         fetch_data_button.click()
 
-        # Find the QTableWidget within the editions_table_area
-        # This objectName will need to be set in main.py
-        editions_table = self.window.editions_table_area.findChild(QTableWidget, "editionsTableWidget")
+        # Find the QTableWidget
+        editions_table = self.window.editions_table_widget
         self.assertIsNotNone(editions_table, "Editions QTableWidget not found.")
 
-        # Expected column headers (order matters for indexing)
-        expected_headers = ["Title", "Pages", "Published", "ISBN10", "ISBN13", "Language", "Cover URL"]
+        # Expected column headers per spec
+        expected_headers = [
+            "id", "score", "title", "subtitle", "Cover Image?", 
+            "isbn_10", "isbn_13", "asin", "Reading Format", "pages", 
+            "Duration", "edition_format", "edition_information", 
+            "release_date", "Publisher", "Language", "Country"
+        ]
         self.assertEqual(editions_table.columnCount(), len(expected_headers))
         for i, header in enumerate(expected_headers):
             self.assertEqual(editions_table.horizontalHeaderItem(i).text(), header)
         
-        self.assertEqual(editions_table.rowCount(), 2) # Two editions in mock_book_data
+        self.assertEqual(editions_table.rowCount(), 2)
 
-        # Check content of the first row
-        self.assertEqual(editions_table.item(0, 0).text(), "First Edition")
-        self.assertEqual(editions_table.item(0, 1).text(), "300")
-        self.assertEqual(editions_table.item(0, 2).text(), "2023-01-01")
-        self.assertEqual(editions_table.item(0, 3).text(), "1234567890")
-        self.assertEqual(editions_table.item(0, 4).text(), "9781234567890")
-        self.assertEqual(editions_table.item(0, 5).text(), "English")
-        self.assertEqual(editions_table.item(0, 6).text(), "http://example.com/ed1_cover.jpg")
+        # Check first row (should be sorted by score desc, so ed1 first)
+        self.assertEqual(editions_table.item(0, 0).text(), "ed1")  # id
+        self.assertEqual(editions_table.item(0, 1).text(), "95.5")  # score
+        # Title should be truncated
+        self.assertIn("First Edition with", editions_table.item(0, 2).text())
+        self.assertIn("...", editions_table.item(0, 2).text())  # Check truncation
+        self.assertEqual(editions_table.item(0, 3).text(), "Premium Hardcover")  # subtitle
+        self.assertEqual(editions_table.item(0, 4).text(), "Yes")  # Cover Image?
+        self.assertEqual(editions_table.item(0, 5).text(), "1234567890")  # isbn_10
+        self.assertEqual(editions_table.item(0, 6).text(), "9781234567890")  # isbn_13
+        self.assertEqual(editions_table.item(0, 7).text(), "B001234567")  # asin
+        self.assertEqual(editions_table.item(0, 8).text(), "Physical Book")  # Reading Format
+        self.assertEqual(editions_table.item(0, 9).text(), "300")  # pages
+        self.assertEqual(editions_table.item(0, 10).text(), "N/A")  # Duration
+        self.assertEqual(editions_table.item(0, 11).text(), "Hardcover")  # edition_format
+        self.assertEqual(editions_table.item(0, 12).text(), "First printing with author signature")  # edition_information
+        self.assertEqual(editions_table.item(0, 13).text(), "01/15/2023")  # release_date
+        self.assertEqual(editions_table.item(0, 14).text(), "Test Publishers Inc.")  # Publisher
+        self.assertEqual(editions_table.item(0, 15).text(), "English")  # Language
+        self.assertEqual(editions_table.item(0, 16).text(), "United States")  # Country
+
+        # Check second row
+        self.assertEqual(editions_table.item(1, 0).text(), "ed2")  # id
+        self.assertEqual(editions_table.item(1, 1).text(), "88.0")  # score
+        self.assertEqual(editions_table.item(1, 2).text(), "Second Edition")  # title
+        self.assertEqual(editions_table.item(1, 3).text(), "N/A")  # subtitle
+        self.assertEqual(editions_table.item(1, 4).text(), "No")  # Cover Image?
+        self.assertEqual(editions_table.item(1, 5).text(), "N/A")  # isbn_10
+        self.assertEqual(editions_table.item(1, 6).text(), "9780987654321")  # isbn_13
+        self.assertEqual(editions_table.item(1, 7).text(), "N/A")  # asin
+        self.assertEqual(editions_table.item(1, 8).text(), "Audiobook")  # Reading Format
+        self.assertEqual(editions_table.item(1, 9).text(), "N/A")  # pages
+        self.assertEqual(editions_table.item(1, 10).text(), "09:00:00")  # Duration (9 hours)
+        self.assertEqual(editions_table.item(1, 11).text(), "Audiobook")  # edition_format
+        self.assertEqual(editions_table.item(1, 12).text(), "N/A")  # edition_information
+        self.assertEqual(editions_table.item(1, 13).text(), "06/30/2024")  # release_date
+        self.assertEqual(editions_table.item(1, 14).text(), "Audio House")  # Publisher
+        self.assertEqual(editions_table.item(1, 15).text(), "French")  # Language
+        self.assertEqual(editions_table.item(1, 16).text(), "Canada")  # Country
+
+        # Check sorting is enabled
+        self.assertTrue(editions_table.isSortingEnabled())
+        
+        # Check tooltip for truncated text
+        self.assertEqual(editions_table.item(0, 2).toolTip(), 
+                         "First Edition with a very long title that should be truncated")
         
         mock_api_get_book_by_id.assert_called_once_with(123)
 
@@ -554,6 +614,74 @@ class TestMainWindow(unittest.TestCase):
         # even if data fields were null.
         expected_status_message = "Book data fetched successfully for ID 456."
         self.assertEqual(self.window.status_bar.currentMessage(), expected_status_message)
+    
+    @patch.object(ApiClient, 'get_book_by_id')
+    def test_editions_table_data_transformations(self, mock_api_get_book_by_id):
+        """
+        Test that the editions table correctly transforms data according to spec:
+        - Reading format ID mapping
+        - Date formatting
+        - Audio seconds to HH:MM:SS
+        - N/A handling for null values
+        """
+        mock_book_data = {
+            "id": "789",
+            "title": "Test Book",
+            "contributions": [],
+            "editions_count": 3,
+            "editions": [
+                {
+                    "id": "ed_ebook",
+                    "score": 50,
+                    "title": "E-Book Edition",
+                    "reading_format_id": 4,  # E-Book
+                    "audio_seconds": None,
+                    "pages": 250,
+                    "release_date": None,  # Test N/A date
+                },
+                {
+                    "id": "ed_unknown",
+                    "score": 40,
+                    "title": "Unknown Format",
+                    "reading_format_id": 99,  # Unknown format
+                    "pages": None,  # Test N/A pages
+                    "release_date": "invalid-date",  # Test invalid date format
+                },
+                {
+                    "id": "ed_audio_long",
+                    "score": 30,
+                    "title": "Long Audiobook",
+                    "reading_format_id": 2,  # Audiobook
+                    "audio_seconds": 45678,  # 12:41:18
+                    "pages": None,
+                    "release_date": "2025-12-25",
+                }
+            ]
+        }
+        mock_api_get_book_by_id.return_value = mock_book_data
+
+        book_id_line_edit = self.window.findChild(QLineEdit, "bookIdLineEdit")
+        fetch_data_button = self.window.findChild(QPushButton, "fetchDataButton")
+
+        book_id_line_edit.setText("789")
+        fetch_data_button.click()
+
+        editions_table = self.window.editions_table_widget
+        
+        # Check E-Book format
+        self.assertEqual(editions_table.item(0, 8).text(), "E-Book")
+        self.assertEqual(editions_table.item(0, 10).text(), "N/A")  # No audio duration
+        self.assertEqual(editions_table.item(0, 13).text(), "N/A")  # Null date
+        
+        # Check unknown reading format (should show raw ID)
+        self.assertEqual(editions_table.item(1, 8).text(), "99")
+        self.assertEqual(editions_table.item(1, 9).text(), "N/A")  # Null pages
+        self.assertEqual(editions_table.item(1, 13).text(), "invalid-date")  # Invalid date kept as-is
+        
+        # Check audiobook duration conversion
+        self.assertEqual(editions_table.item(2, 8).text(), "Audiobook")
+        self.assertEqual(editions_table.item(2, 10).text(), "12:41:18")  # 45678 seconds
+        self.assertEqual(editions_table.item(2, 13).text(), "12/25/2025")  # Formatted date
 
     @patch('librarian_assistant.main.webbrowser.open')
     def test_open_web_link_called_with_url(self, mock_webbrowser_open):
