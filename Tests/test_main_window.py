@@ -2,8 +2,10 @@
 import unittest
 from unittest.mock import patch, MagicMock # Import patch and MagicMock
 from PyQt5.QtWidgets import QApplication, QLabel, QLineEdit, QPushButton, QGroupBox, QTextEdit, QTableWidget
+from PyQt5.QtGui import QPixmap # QPixmap is in PyQt5.QtGui
 from librarian_assistant.main import MainWindow # Make sure this import path is correct
 from librarian_assistant.api_client import ApiClient
+from librarian_assistant.image_downloader import ImageDownloader # Import ImageDownloader
 from librarian_assistant.exceptions import ApiNotFoundError, ApiAuthError, NetworkError, ApiProcessingError
 
 # QApplication instance is required for PyQt tests
@@ -68,7 +70,14 @@ class TestMainWindow(unittest.TestCase):
         # For a strict "only numbers allowed at all" policy, it should be empty or reject.
         # If it's a QIntValidator, it might allow partial valid input or clear on invalid.
         self.assertEqual(book_id_line_edit.text(), "", "QLineEdit should be empty after mixed input if strict.")
-            
+
+    def test_main_window_instantiates_image_downloader(self):
+        """
+        Test that MainWindow instantiates an ImageDownloader.
+        """
+        self.assertIsNotNone(self.window.image_downloader, "MainWindow should have an image_downloader attribute.")
+        self.assertIsInstance(self.window.image_downloader, ImageDownloader, "image_downloader attribute should be an instance of ImageDownloader.")
+
     @patch('librarian_assistant.main.logger.info') # To ensure no logging happens on invalid input
     def test_fetch_data_button_empty_book_id_shows_status_error(self, mock_main_logger_info):
         """
@@ -241,14 +250,23 @@ class TestMainWindow(unittest.TestCase):
         Test that a successful API call populates the General Book Information Area
         with the fetched title, authors, description, and cover URL.
         """
-        # Sample book data matching the structure returned by ApiClient
-        # and the fields from spec.md Appendix A
+        # Mock book data should represent the structure of `response_data['books'][0]`
+        # as per spec.md and Appendix A (GraphQL query).
         mock_book_data = {
             "id": "123",
             "title": "The Great Test Book",
-            "authors": [{"name": "Author One"}, {"name": "Author Two"}],
+            # Authors come from the 'contributions' array
+            "contributions": [
+                {"author": {"name": "Author One"}},
+                {"author": {"name": "Author Two"}}
+            ],
             "description": "A truly captivating description of testing.",
-            "cover": {"url": "http://example.com/great_test_book_cover.jpg"}
+            # The cover URL for general display would likely come from default_cover_edition
+            "default_cover_edition": {
+                "image": {"url": "http://example.com/great_test_book_cover.jpg"}
+            }
+            # Add other fields from books[0] like slug, editions_count if they are
+            # displayed in this specific part of the UI and tested here.
         }
         mock_api_get_book_by_id.return_value = mock_book_data
 
@@ -259,19 +277,35 @@ class TestMainWindow(unittest.TestCase):
         fetch_data_button.click()
 
         # Check the instance attributes which should point to the new, populated widgets
+        # Ensure these objectNames match what's set in your MainWindow's UI setup.
         self.assertIsNotNone(self.window.book_title_label, "Book title QLabel attribute not updated.")
         self.assertEqual(self.window.book_title_label.text(), "Title: The Great Test Book")
         self.assertEqual(self.window.book_title_label.parentWidget(), self.window.book_info_area, "Title label not in book info area.")
 
         self.assertIsNotNone(self.window.book_authors_label, "Book authors QLabel attribute not updated.")
+        # Assuming authors are joined by ", " in main.py
         self.assertEqual(self.window.book_authors_label.text(), "Authors: Author One, Author Two")
         self.assertEqual(self.window.book_authors_label.parentWidget(), self.window.book_info_area, "Authors label not in book info area.")
 
-        self.assertIsNotNone(self.window.book_description_text_edit, "Book description QTextEdit attribute not updated.")
-        self.assertEqual(self.window.book_description_text_edit.toPlainText(), "A truly captivating description of testing.")
-        self.assertEqual(self.window.book_description_text_edit.parentWidget(), self.window.book_info_area, "Description text edit not in book info area.")
-
+        # Test for the new QLabel based description display
+        self.assertIsNotNone(self.window.book_description_label, "Book description QLabel attribute not updated.")
+        
+        full_mock_description = "A truly captivating description of testing."
+        MAX_DESC_CHARS = 150 # Must match the constant in main.py
+        
+        if len(full_mock_description) > MAX_DESC_CHARS:
+            expected_display_text = f"Description: {full_mock_description[:MAX_DESC_CHARS]}..."
+            expected_tooltip_text = full_mock_description
+        else:
+            expected_display_text = f"Description: {full_mock_description}"
+            expected_tooltip_text = "" # Or full_mock_description if tooltip is always set
+            
+        self.assertEqual(self.window.book_description_label.text(), expected_display_text)
+        self.assertEqual(self.window.book_description_label.toolTip(), expected_tooltip_text)
+        self.assertEqual(self.window.book_description_label.parentWidget(), self.window.book_info_area, "Description label not in book info area.")
+        
         self.assertIsNotNone(self.window.book_cover_label, "Book cover QLabel attribute not updated.")
+        # This assumes book_cover_label displays the URL as text.
         self.assertEqual(self.window.book_cover_label.text(), "Cover URL: http://example.com/great_test_book_cover.jpg")
         self.assertEqual(self.window.book_cover_label.parentWidget(), self.window.book_info_area, "Cover label not in book info area.")
         
@@ -342,6 +376,64 @@ class TestMainWindow(unittest.TestCase):
         self.assertEqual(editions_table.item(0, 6).text(), "http://example.com/ed1_cover.jpg")
         
         mock_api_get_book_by_id.assert_called_once_with(123)
+
+    def test_initial_general_book_information_ui_elements_present_and_default(self):
+        """
+        Test that all UI elements for General Book Information are present after
+        MainWindow instantiation and display their default "Not Fetched" or "N/A" text.
+        Corresponds to todo.md Prompt 4.1.
+        """
+        # Find the "General Book Information Area" QGroupBox
+        book_info_area = self.window.findChild(QGroupBox, "bookInfoArea")
+        self.assertIsNotNone(book_info_area, "General Book Information Area QGroupBox not found.")
+
+        # Check labels directly attached to MainWindow instance
+        self.assertIsNotNone(self.window.book_title_label, "Book Title QLabel not found.")
+        self.assertEqual(self.window.book_title_label.text(), "Title: Not Fetched")
+
+        self.assertIsNotNone(self.window.book_slug_label, "Book Slug QLabel not found.")
+        self.assertEqual(self.window.book_slug_label.text(), "Slug: Not Fetched")
+
+        self.assertIsNotNone(self.window.book_authors_label, "Book Authors QLabel not found.")
+        self.assertEqual(self.window.book_authors_label.text(), "Authors: Not Fetched")
+
+        self.assertIsNotNone(self.window.book_id_queried_label, "Book ID (Queried) QLabel not found.")
+        self.assertEqual(self.window.book_id_queried_label.text(), "Book ID (Queried): Not Fetched")
+
+        self.assertIsNotNone(self.window.book_total_editions_label, "Total Editions QLabel not found.")
+        self.assertEqual(self.window.book_total_editions_label.text(), "Total Editions: Not Fetched")
+
+        # Check for the new QLabel for description
+        self.assertIsNotNone(self.window.book_description_label, "Book Description QLabel not found.")
+        self.assertEqual(self.window.book_description_label.text(), "Description: Not Fetched")
+        self.assertEqual(self.window.book_description_label.toolTip(), "", "Initial tooltip for description should be empty.")
+
+        # Check for Default Editions GroupBox
+        default_editions_gb = self.window.findChild(QGroupBox, "defaultEditionsGroupBox")
+        self.assertIsNotNone(default_editions_gb, "Default Editions QGroupBox not found.")
+        self.assertEqual(default_editions_gb.title(), "Default Editions")
+        self.assertIs(default_editions_gb.parentWidget(), book_info_area, "Default Editions GroupBox should be in Book Info Area.")
+
+        # Check labels within Default Editions GroupBox
+        self.assertIsNotNone(self.window.default_audio_label, "Default Audio Label not found.")
+        self.assertEqual(self.window.default_audio_label.text(), "Default Audio Edition: N/A")
+        self.assertIs(self.window.default_audio_label.parentWidget(), default_editions_gb, "Default Audio Label not in correct group box.")
+
+        self.assertIsNotNone(self.window.default_cover_label_info, "Default Cover Label Info not found.")
+        self.assertEqual(self.window.default_cover_label_info.text(), "Default Cover Edition: N/A")
+        self.assertIs(self.window.default_cover_label_info.parentWidget(), default_editions_gb, "Default Cover Label Info not in correct group box.")
+
+        self.assertIsNotNone(self.window.default_ebook_label, "Default E-book Label not found.")
+        self.assertEqual(self.window.default_ebook_label.text(), "Default E-book Edition: N/A")
+        self.assertIs(self.window.default_ebook_label.parentWidget(), default_editions_gb, "Default E-book Label not in correct group box.")
+
+        self.assertIsNotNone(self.window.default_physical_label, "Default Physical Label not found.")
+        self.assertEqual(self.window.default_physical_label.text(), "Default Physical Edition: N/A")
+        self.assertIs(self.window.default_physical_label.parentWidget(), default_editions_gb, "Default Physical Label not in correct group box.")
+
+        # Check the main book cover URL label (which is separate from default editions info)
+        self.assertIsNotNone(self.window.book_cover_label, "Book Cover URL QLabel not found.")
+        self.assertEqual(self.window.book_cover_label.text(), "Cover URL: Not Fetched")
 
 if __name__ == '__main__':
     unittest.main()

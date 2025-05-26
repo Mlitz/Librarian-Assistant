@@ -2,7 +2,7 @@
 # ABOUTME: It ensures that the API client can be instantiated and its methods behave as expected.
 
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch # Import patch
 import requests
 from librarian_assistant.exceptions import ApiNotFoundError, ApiAuthError, NetworkError, ApiProcessingError
 
@@ -45,34 +45,58 @@ class TestApiClient(unittest.TestCase):
         # The actual endpoint for GraphQL is usually the base_url itself.
         
         mock_token_manager = MagicMock(spec=ConfigManager)
-        mock_token_manager.load_token.return_value = "test_bearer_token"
+        # The token loaded should now include "Bearer " as the user provides it
+        mock_token_manager.load_token.return_value = "Bearer test_bearer_token"
         
         # The base_url for ApiClient should be the GraphQL endpoint
         client = ApiClient(base_url="https://api.hardcover.app/v1/graphql", token_manager=mock_token_manager)
 
         book_id_to_fetch = 123
-        # Update expected response to match the fields in the spec.md query
-        expected_book_data = {
-            "id": str(book_id_to_fetch),
+        # This should match the structure of a single book object returned by the API,
+        # corresponding to the fields in api_client.py's GraphQL query.
+        expected_book_object_from_api = {
+            "id": book_id_to_fetch, # Assuming API returns int for ID
+            "slug": "test-book-title",
             "title": "Test Book Title",
-            "description": "A fascinating description.",
-            "authors": [{"name": "Author One"}, {"name": "Author Two"}],
-            "cover": {"url": "http://example.com/cover.jpg"},
+            "subtitle": "An Amazing Subtitle",
+            "description": "A fascinating description of the test book.",
+            "editions_count": 2,
             "editions": [
                 {
-                    "id": "ed1",
+                    "id": 101,
+                    "score": 4.5,
                     "title": "First Edition",
-                    "pageCount": 300,
-                    "publishedDate": "2023-01-01",
+                    "subtitle": "Collector's Print",
+                    "image": {"url": "http://example.com/ed1_cover.jpg"},
                     "isbn10": "1234567890",
                     "isbn13": "9781234567890",
+                    "asin": "B00TESTASIN",
+                    "cached_contributors": ["Writer: Author One (slug: author-one)", "Illustrator: Author Two (slug: author-two)"], # Mock as list of strings
+                    "contributions": [
+                        {"author": {"slug": "author-one", "name": "Author One"}},
+                        {"author": {"slug": "author-two", "name": "Author Two"}}
+                    ],
+                    "reading_format_id": 1, # Physical
+                    "pages": 300,
+                    "audio_seconds": None,
+                    "edition_format": "Hardcover",
+                    "edition_information": "Special Edition",
+                    # "release_date" moved to top level
+                    "book_mappings": [{"external_id": "gr123", "platform": {"name": "Goodreads"}}],
+                    "publisher": {"name": "Test Publisher"},
                     "language": {"name": "English"},
-                    "cover": {"url": "http://example.com/ed1_cover.jpg"}
+                    # "country" was removed in the new query
                 }
-            ]
+            ],
+            "release_date": "2023-01-01", # Moved to top level
+            "default_audio_edition": {"book_id": book_id_to_fetch, "edition_format": "Audiobook"},
+            "default_cover_edition": {"id": 101, "image": {"url": "http://example.com/default_cover.jpg"}}, # Updated mock
+            "default_ebook_edition": {"book_id": book_id_to_fetch, "edition_format": "Ebook"},
+            "default_physical_edition": {"book_id": book_id_to_fetch, "edition_format": "Hardcover"}
         }
+        # The API returns a list for "books"
         expected_api_response_data = {
-            "data": {"book": expected_book_data}
+            "data": {"books": [expected_book_object_from_api]}
         }
 
         # Configure the mock for requests.post
@@ -85,39 +109,43 @@ class TestApiClient(unittest.TestCase):
         result = client.get_book_by_id(book_id_to_fetch)
 
         # Assertions
-        self.assertEqual(result, expected_book_data, "The method should return the detailed book data.")
+        self.assertEqual(result, expected_book_object_from_api, "The method should return the detailed book data.")
 
         # Verify requests.post was called correctly
-        # The actual query from spec.md Appendix A
+        # This query should match the one in api_client.py
         spec_graphql_query = """
-            query GetBookById($bookId: Int!) {
-              book(id: $bookId) {
+        query MyQuery($bookId: Int = 10) {
+            books(where: {id: {_eq: $bookId}}) {
                 id
+                slug
                 title
+                subtitle
                 description
-                authors {
-                  name
-                }
-                cover {
-                  url
-                }
+                editions_count
+                contributions {author {name slug}}
                 editions {
-                  id
-                  title
-                  pageCount
-                  publishedDate
-                  isbn10
-                  isbn13
-                  language {
-                    name
-                  }
-                  cover {
-                    url
-                  }
-                }
-                # Any other fields you might need from the 'Book' type
-              }
-            }
+                    id
+                    score
+                    title
+                    subtitle
+                    image {url}
+                    isbn_10
+                    isbn_13
+                    asin
+                    cached_contributors
+                    reading_format_id
+                    pages
+                    audio_seconds
+                    edition_format
+                    edition_information
+                    release_date
+                    book_mappings {external_id platform {name}}
+                    publisher {name}
+                    language {language}}
+                default_audio_edition {id edition_format}
+                default_cover_edition {id edition_format image {url}}
+                default_ebook_edition {id edition_format}
+                default_physical_edition {id edition_format}}}
         """
         
         mock_post.assert_called_once()
@@ -148,7 +176,7 @@ class TestApiClient(unittest.TestCase):
         mock_token_manager.load_token.assert_called_once()
     
     @unittest.mock.patch('librarian_assistant.api_client.requests.post')
-    def test_get_book_by_id_not_found_error(self, mock_post):
+    def test_get_book_by_id_not_found_http_404_error(self, mock_post):
         """
         Tests that get_book_by_id raises ApiNotFoundError for a 404 response.
         """
@@ -156,7 +184,8 @@ class TestApiClient(unittest.TestCase):
         from librarian_assistant.config_manager import ConfigManager
 
         mock_token_manager = MagicMock(spec=ConfigManager)
-        mock_token_manager.load_token.return_value = "test_bearer_token"
+        # The token loaded should now include "Bearer "
+        mock_token_manager.load_token.return_value = "Bearer test_bearer_token"
         
         client = ApiClient(base_url="https://api.hardcover.app/v1/graphql", token_manager=mock_token_manager)
 
@@ -183,6 +212,57 @@ class TestApiClient(unittest.TestCase):
         mock_token_manager.load_token.assert_called_once()
 
     @unittest.mock.patch('librarian_assistant.api_client.requests.post')
+    def test_get_book_by_id_not_found_empty_list(self, mock_post):
+        """
+        Tests ApiNotFoundError when API returns 200 OK with an empty 'books' list.
+        """
+        from librarian_assistant.api_client import ApiClient
+        from librarian_assistant.config_manager import ConfigManager
+
+        mock_token_manager = MagicMock(spec=ConfigManager)
+        mock_token_manager.load_token.return_value = "Bearer test_bearer_token"
+        client = ApiClient(base_url="https://api.hardcover.app/v1/graphql", token_manager=mock_token_manager)
+        book_id_to_fetch = 404 # A different ID for this test case
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"data": {"books": []}} # Empty list
+        mock_post.return_value = mock_response
+
+        with self.assertRaises(ApiNotFoundError) as context:
+            client.get_book_by_id(book_id_to_fetch)
+        self.assertEqual(f"Book ID {book_id_to_fetch} not found (API returned an empty 'books' list): ID {book_id_to_fetch}", str(context.exception))
+        mock_post.assert_called_once()
+        mock_token_manager.load_token.assert_called_once()
+
+    @unittest.mock.patch('librarian_assistant.api_client.requests.post')
+    def test_get_book_by_id_unexpected_structure_books_null(self, mock_post):
+        """
+        Tests ApiProcessingError when API returns 200 OK with 'books: null'.
+        """
+        from librarian_assistant.api_client import ApiClient
+        from librarian_assistant.config_manager import ConfigManager
+
+        mock_token_manager = MagicMock(spec=ConfigManager)
+        mock_token_manager.load_token.return_value = "Bearer test_bearer_token"
+        client = ApiClient(base_url="https://api.hardcover.app/v1/graphql", token_manager=mock_token_manager)
+        book_id_to_fetch = 505 
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"data": {"books": None}} # books is null
+        mock_post.return_value = mock_response
+
+        with self.assertRaises(ApiProcessingError) as context:
+            client.get_book_by_id(book_id_to_fetch)
+        # Updated to expect the more specific error message from the refined api_client.py logic
+        self.assertIn(
+            "API response contained 'data' but 'books' field was null or missing.",
+            str(context.exception))
+        mock_post.assert_called_once()
+        mock_token_manager.load_token.assert_called_once()
+
+    @unittest.mock.patch('librarian_assistant.api_client.requests.post')
     def test_get_book_by_id_auth_error(self, mock_post):
         """
         Tests that get_book_by_id raises ApiAuthError for a 401 response.
@@ -191,8 +271,8 @@ class TestApiClient(unittest.TestCase):
         from librarian_assistant.config_manager import ConfigManager
 
         mock_token_manager = MagicMock(spec=ConfigManager)
-        # Simulate an invalid token being loaded
-        mock_token_manager.load_token.return_value = "invalid_or_expired_token"
+        # Simulate an invalid token being loaded, as provided by the user
+        mock_token_manager.load_token.return_value = "Bearer invalid_or_expired_token"
         
         client = ApiClient(base_url="https://api.hardcover.app/v1/graphql", token_manager=mock_token_manager)
 
@@ -226,7 +306,8 @@ class TestApiClient(unittest.TestCase):
         from librarian_assistant.config_manager import ConfigManager
 
         mock_token_manager = MagicMock(spec=ConfigManager)
-        mock_token_manager.load_token.return_value = "test_bearer_token"
+        # The token loaded should now include "Bearer "
+        mock_token_manager.load_token.return_value = "Bearer test_bearer_token"
         
         client = ApiClient(base_url="https://api.hardcover.app/v1/graphql", token_manager=mock_token_manager)
 
@@ -256,7 +337,8 @@ class TestApiClient(unittest.TestCase):
         from librarian_assistant.config_manager import ConfigManager
 
         mock_token_manager = MagicMock(spec=ConfigManager)
-        mock_token_manager.load_token.return_value = "test_bearer_token"
+        # The token loaded should now include "Bearer "
+        mock_token_manager.load_token.return_value = "Bearer test_bearer_token"
         
         client = ApiClient(base_url="https://api.hardcover.app/v1/graphql", token_manager=mock_token_manager)
 
@@ -301,7 +383,8 @@ class TestApiClient(unittest.TestCase):
         from librarian_assistant.config_manager import ConfigManager
 
         mock_token_manager = MagicMock(spec=ConfigManager)
-        mock_token_manager.load_token.return_value = "test_bearer_token" # Token is present but API deems it malformed
+        # Token is present but API deems it malformed. User provides the full string.
+        mock_token_manager.load_token.return_value = "Malformed Bearer Token String" 
         
         client = ApiClient(base_url="https://api.hardcover.app/v1/graphql", token_manager=mock_token_manager)
 
@@ -333,6 +416,53 @@ class TestApiClient(unittest.TestCase):
         
         mock_post.assert_called_once()
         mock_token_manager.load_token.assert_called_once()
+
+    @patch('librarian_assistant.api_client.requests.post')
+    def test_get_book_by_id_unexpected_structure_no_data_no_errors(self, mock_post):
+        """
+        Tests ApiProcessingError for unexpected response without data or errors keys.
+        """
+        from librarian_assistant.api_client import ApiClient
+        from librarian_assistant.config_manager import ConfigManager
+
+        mock_token_manager = MagicMock(spec=ConfigManager)
+        mock_token_manager.load_token.return_value = "Bearer test_bearer_token"
+        client = ApiClient(base_url="https://api.hardcover.app/v1/graphql", token_manager=mock_token_manager)
+        book_id_to_fetch = 789
+
+        mock_response = MagicMock(spec=requests.Response)
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"unexpected_key": "unexpected_value"} # No 'data' or 'errors'
+        mock_post.return_value = mock_response
+
+        with self.assertRaises(ApiProcessingError) as context:
+            client.get_book_by_id(book_id_to_fetch)
+        self.assertIn("Unexpected API response structure: Missing 'data' and 'errors'.", str(context.exception))
+        mock_post.assert_called_once()
+        mock_token_manager.load_token.assert_called_once()
+
+    @patch('librarian_assistant.api_client.requests.post') # Add mock_post to prevent actual calls
+    def test_get_book_by_id_no_token_raises_auth_error(self, mock_post):
+        """
+        Tests that get_book_by_id raises ApiAuthError if no token is available
+        before making an API call.
+        """
+        from librarian_assistant.api_client import ApiClient
+        from librarian_assistant.config_manager import ConfigManager
+
+        mock_token_manager = MagicMock(spec=ConfigManager)
+        mock_token_manager.load_token.return_value = None # Simulate no token
+        
+        client = ApiClient(base_url="https://api.hardcover.app/v1/graphql", token_manager=mock_token_manager)
+
+        book_id_to_fetch = 123
+
+        with self.assertRaises(ApiAuthError) as context:
+            client.get_book_by_id(book_id_to_fetch)
+        
+        self.assertIn("API token is not configured", str(context.exception))
+        mock_token_manager.load_token.assert_called_once()
+        mock_post.assert_not_called() # Ensure no API call was attempted
 
 if __name__ == '__main__':
     unittest.main()

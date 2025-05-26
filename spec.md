@@ -497,78 +497,39 @@ The choice should prioritize good table widget support and styling capabilities 
 
 Appendix A: API GraphQL Query
 
-query MyQuery($bookId: Int!) {
-  books(where: {id: {_eq: $bookId}}) {
-    id
-    slug
-    title
-    subtitle
-    description
-    editions_count
-    contributions {
-      author {
-        name
-      }
-    }
-    editions {
-      id
-      score
-      title
-      subtitle
-      image {
-        url
-      }
-      isbn_10
-      isbn_13
-      asin
-      cached_contributors {
-        author {
-          slug
-          name
-          # cachedImage data can be ignored for V1 table display
-        }
-        contribution # e.g., "Narrator", "Translator", or null
-      }
-      reading_format_id # 1: Physical, 2: Audiobook, 4: E-Book
-      pages
-      audio_seconds
-      edition_format
-      edition_information
-      release_date
-      book_mappings {
-        external_id
-        platform {
-          name # e.g., "goodreads", "google", "AbeBooks"
-        }
-      }
-      publisher {
-        name
-      }
-      language {
-        language
-      }
-      country {
-        name
-      }
-    }
-    default_audio_edition {
-      id
-      edition_format
-    }
-    default_cover_edition {
-      id
-      edition_format
-    }
-    default_ebook_edition {
-      id
-      edition_format
-    }
-    default_physical_edition {
-      id
-      edition_format
-    }
-  }
-}
+query MyQuery($bookId: Int = 10) {
+    books(where: {id: {_eq: $bookId}}) {
+        id
+        slug
+        title
+        subtitle
+        description
+        editions_count
+        contributions {author {name slug}}
+        editions {
+            id
+            score
+            title
+            subtitle
+            image {url}
+            isbn_10
+            isbn_13
+            asin
+            cached_contributors
+            reading_format_id
+            pages
+            audio_seconds
+            edition_format
+            edition_information
+            release_date
+            book_mappings {external_id platform {name}}
+            publisher {name}
+            language {language}}
+        default_audio_edition {id edition_format}
+        default_cover_edition {id edition_format image {url}}
+        default_ebook_edition {id edition_format}
+        default_physical_edition {id edition_format}}}
+
 
 (Note: cached_contributors.author.cachedImage fields are not required for V1 display logic but are present in the query. The books[0].contributions field is used for the top-level book author).
 Appendix B: Contributor Roles

@@ -21,7 +21,7 @@ class TokenDialog(QDialog):
         main_layout = QVBoxLayout(self)
 
         # Instruction Label
-        self.instruction_label = QLabel("Enter your Hardcover.app Bearer Token:")
+        self.instruction_label = QLabel("Enter your Hardcover.app Bearer Token (including the 'Bearer ' prefix):")
         self.instruction_label.setObjectName("instructionLabel") # For testability
         self.instruction_label.setWordWrap(True) # Ensure text wraps if too long
         main_layout.addWidget(self.instruction_label)

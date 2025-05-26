@@ -1,7 +1,7 @@
 # ABOUTME: This file is the main entry point for the Librarian-Assistant application.
 # ABOUTME: It defines the main window and initializes the application.
 import sys
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QTabWidget, QWidget, QLineEdit, QTextEdit, QTableWidget, QTableWidgetItem,
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QTabWidget, QWidget, QLineEdit, QTextEdit, QTableWidget, QTableWidgetItem, QScrollArea,
                              QVBoxLayout, QLabel, QGroupBox, QStatusBar, QPushButton)
 from PyQt5.QtGui import QIntValidator, QValidator # Import QIntValidator and QValidator
 from PyQt5.QtCore import Qt # For dialog results, though not directly used in this snippet
@@ -14,6 +14,8 @@ from librarian_assistant.token_dialog import TokenDialog
 from librarian_assistant.api_client import ApiClient
 # Import custom exceptions for Prompt 3.3
 from librarian_assistant.exceptions import ApiException, ApiNotFoundError, ApiAuthError, NetworkError, ApiProcessingError
+# Import ImageDownloader for Prompt 4.1
+from librarian_assistant.image_downloader import ImageDownloader
 
 import logging
 logger = logging.getLogger(__name__)
@@ -35,12 +37,15 @@ class MainWindow(QMainWindow):
             base_url=HARDCOVER_API_BASE_URL,
             token_manager=self.config_manager
         )
+        self.image_downloader = ImageDownloader()
 
         self.tab_widget = QTabWidget()
         self.setCentralWidget(self.tab_widget)
 
-        self.main_view_tab_content = QWidget()
-        main_view_layout = QVBoxLayout(self.main_view_tab_content)
+        # This widget will contain all the content for the "Main View" tab and will be placed inside the scroll area.
+        self.main_view_content_widget = QWidget()
+        # The layout is applied to this content widget.
+        main_view_layout = QVBoxLayout(self.main_view_content_widget)
 
         self.api_input_area = QGroupBox("API & Book ID Input Area")
         self.api_input_area.setObjectName("apiInputArea")
@@ -84,14 +89,49 @@ class MainWindow(QMainWindow):
         self.book_title_label.setObjectName("bookTitleLabel")
         self.info_layout.addWidget(self.book_title_label)
 
+        self.book_slug_label = QLabel("Slug: Not Fetched")
+        self.book_slug_label.setObjectName("bookSlugLabel")
+        self.info_layout.addWidget(self.book_slug_label)
+
         self.book_authors_label = QLabel("Authors: Not Fetched")
         self.book_authors_label.setObjectName("bookAuthorsLabel")
         self.info_layout.addWidget(self.book_authors_label)
 
-        self.book_description_text_edit = QTextEdit("Description: Not Fetched")
-        self.book_description_text_edit.setObjectName("bookDescriptionTextEdit")
-        self.book_description_text_edit.setReadOnly(True)
-        self.info_layout.addWidget(self.book_description_text_edit)
+        self.book_id_queried_label = QLabel("Book ID (Queried): Not Fetched")
+        self.book_id_queried_label.setObjectName("bookIdQueriedLabel")
+        self.info_layout.addWidget(self.book_id_queried_label)
+
+        self.book_total_editions_label = QLabel("Total Editions: Not Fetched")
+        self.book_total_editions_label.setObjectName("bookTotalEditionsLabel")
+        self.info_layout.addWidget(self.book_total_editions_label)
+
+        self.book_description_label = QLabel("Description: Not Fetched")
+        self.book_description_label.setObjectName("bookDescriptionLabel")
+        self.book_description_label.setWordWrap(True) # Allow text to wrap
+        # Tooltip will be set dynamically if text is truncated
+        self.info_layout.addWidget(self.book_description_label)
+
+        # Default Editions GroupBox and Labels (as per Prompt 4.1)
+        self.default_editions_group_box = QGroupBox("Default Editions")
+        self.default_editions_group_box.setObjectName("defaultEditionsGroupBox")
+        default_editions_layout_init = QVBoxLayout(self.default_editions_group_box) # Layout for init
+
+        self.default_audio_label = QLabel("Default Audio Edition: N/A")
+        self.default_audio_label.setObjectName("defaultAudioLabel")
+        default_editions_layout_init.addWidget(self.default_audio_label)
+
+        self.default_cover_label_info = QLabel("Default Cover Edition: N/A")
+        self.default_cover_label_info.setObjectName("defaultCoverLabelInfo")
+        default_editions_layout_init.addWidget(self.default_cover_label_info)
+
+        self.default_ebook_label = QLabel("Default E-book Edition: N/A")
+        self.default_ebook_label.setObjectName("defaultEbookLabel")
+        default_editions_layout_init.addWidget(self.default_ebook_label)
+
+        self.default_physical_label = QLabel("Default Physical Edition: N/A")
+        self.default_physical_label.setObjectName("defaultPhysicalLabel")
+        default_editions_layout_init.addWidget(self.default_physical_label)
+        self.info_layout.addWidget(self.default_editions_group_box)
 
         self.book_cover_label = QLabel("Cover URL: Not Fetched")
         self.book_cover_label.setObjectName("bookCoverLabel")
@@ -112,7 +152,12 @@ class MainWindow(QMainWindow):
         main_view_layout.setStretchFactor(self.book_info_area, 1)
         main_view_layout.setStretchFactor(self.editions_table_area, 3)
 
-        self.tab_widget.addTab(self.main_view_tab_content, "Main View")
+        # Create a QScrollArea to make the main view content scrollable
+        self.main_view_scroll_area = QScrollArea()
+        self.main_view_scroll_area.setWidgetResizable(True) # Important for the inner widget to resize correctly
+        self.main_view_scroll_area.setWidget(self.main_view_content_widget) # Put the content widget inside the scroll area
+
+        self.tab_widget.addTab(self.main_view_scroll_area, "Main View") # Add the scroll area to the tab
 
         self.history_tab_content = QWidget()
         history_layout = QVBoxLayout(self.history_tab_content)
@@ -214,30 +259,123 @@ class MainWindow(QMainWindow):
 
                 self.status_bar.showMessage(f"Book data fetched successfully for ID {book_id_str}.")
                 logger.info(f"Successfully fetched data for Book ID {book_id_int}: {book_data.get('title', 'N/A')}")
-                
+                logger.info(f"Complete book_data received by main.py for Book ID {book_id_int}: {book_data}")
+
                 # Re-create and populate the General Book Information Area widgets
                 # Title
                 self.book_title_label = QLabel(f"Title: {book_data.get('title', 'N/A')}")
                 self.book_title_label.setObjectName("bookTitleLabel")
                 self.info_layout.addWidget(self.book_title_label)
 
-                # Authors
-                authors_list = book_data.get('authors', [])
-                authors_str = ", ".join([author.get('name', 'Unknown') for author in authors_list if isinstance(author, dict)])
-                self.book_authors_label = QLabel(f"Authors: {authors_str if authors_str else 'N/A'}")
-                self.book_authors_label.setObjectName("bookAuthorsLabel")
-                self.info_layout.addWidget(self.book_authors_label)
+                # Populate Slug
+                self.book_slug_label = QLabel(f"Slug: {book_data.get('slug', 'N/A')}")
+                self.book_slug_label.setObjectName("bookSlugLabel")
+                self.info_layout.addWidget(self.book_slug_label)
 
-                # Description
-                self.book_description_text_edit = QTextEdit(book_data.get('description', 'N/A'))
-                self.book_description_text_edit.setObjectName("bookDescriptionTextEdit")
-                self.book_description_text_edit.setReadOnly(True)
-                self.info_layout.addWidget(self.book_description_text_edit)
+                # Book ID
+                self.book_id_queried_label = QLabel(f"Book ID: {book_id_int}")
+                self.book_id_queried_label.setObjectName("bookIdQueriedLabel")
+                self.info_layout.addWidget(self.book_id_queried_label)
+
+                # Authors
+                authors_list = []
+                # Get the contributions data once to log it and use it
+                book_contributions_data = book_data.get('contributions')
+                logger.info(f"Book ID {book_id_int} - Raw contributions data from API: {book_contributions_data}")
+
+                if isinstance(book_contributions_data, list):
+                    for contribution in book_contributions_data:
+                        if isinstance(contribution, dict) and 'author' in contribution and \
+                            isinstance(contribution['author'], dict) and 'name' in contribution['author']:
+                                authors_list.append(contribution['author']['name'])
+
+                authors_display_text = "N/A"
+                if authors_list:
+                    authors_display_text = ", ".join(authors_list)
+
+                self.book_authors_label = QLabel(f"Authors: {authors_display_text}") # Changed "Author:" to "Authors:"
+                self.book_authors_label.setObjectName("bookAuthorsLabel") # Keep object name for consistency/testing
+                self.info_layout.addWidget(self.book_authors_label)
                 
+                # Total Editions Count
+                editions_count_val = book_data.get('editions_count', 'N/A')
+                self.book_total_editions_label = QLabel(f"Total Editions: {editions_count_val}")
+                self.book_total_editions_label.setObjectName("bookTotalEditionsLabel")
+                self.info_layout.addWidget(self.book_total_editions_label)
+
+                # Description with truncation and tooltip
+                full_description = book_data.get('description', 'N/A')
+                MAX_DESC_CHARS = 500 # Define max characters for display
+                
+                if len(full_description) > MAX_DESC_CHARS:
+                    display_desc_text = full_description[:MAX_DESC_CHARS] + "..."
+                    tooltip_desc_text = full_description
+                else:
+                    display_desc_text = full_description
+                    tooltip_desc_text = "" # No tooltip needed if not truncated, or set full_description
+                
+                self.book_description_label = QLabel(f"Description: {display_desc_text}")
+                self.book_description_label.setObjectName("bookDescriptionLabel")
+                self.book_description_label.setWordWrap(True)
+                if tooltip_desc_text: # Only set tooltip if it was truncated
+                    self.book_description_label.setToolTip(tooltip_desc_text)
+                self.info_layout.addWidget(self.book_description_label)
+
+                # Default Editions GroupBox and Labels (re-create or update)
+                self.default_editions_group_box = QGroupBox("Default Editions")
+                self.default_editions_group_box.setObjectName("defaultEditionsGroupBox")
+                default_editions_layout_dyn = QVBoxLayout(self.default_editions_group_box)
+
+                # Helper to format default edition info
+                def get_default_edition_text(edition_data, edition_name_prefix):
+                    if isinstance(edition_data, dict):
+                        fmt = edition_data.get('edition_format', 'N/A')
+                        ed_id = edition_data.get('id', 'N/A')
+                        return f"{edition_name_prefix}: {fmt} (ID: {ed_id})"
+                    return f"{edition_name_prefix}: N/A"
+
+                self.default_audio_label = QLabel(get_default_edition_text(book_data.get('default_audio_edition'), "Default Audio Edition"))
+                self.default_audio_label.setObjectName("defaultAudioLabel")
+                default_editions_layout_dyn.addWidget(self.default_audio_label)
+
+                self.default_cover_label_info = QLabel(get_default_edition_text(book_data.get('default_cover_edition'), "Default Cover Edition"))
+                self.default_cover_label_info.setObjectName("defaultCoverLabelInfo")
+                default_editions_layout_dyn.addWidget(self.default_cover_label_info)
+
+                self.default_ebook_label = QLabel(get_default_edition_text(book_data.get('default_ebook_edition'), "Default E-book Edition"))
+                self.default_ebook_label.setObjectName("defaultEbookLabel")
+                default_editions_layout_dyn.addWidget(self.default_ebook_label)
+
+                self.default_physical_label = QLabel(get_default_edition_text(book_data.get('default_physical_edition'), "Default Physical Edition"))
+                self.default_physical_label.setObjectName("defaultPhysicalLabel")
+                default_editions_layout_dyn.addWidget(self.default_physical_label)
+
+                self.info_layout.addWidget(self.default_editions_group_box)
+
                 # Cover URL
-                self.book_cover_label = QLabel(f"Cover URL: {book_data.get('cover', {}).get('url', 'N/A')}")
-                self.book_cover_label.setObjectName("bookCoverLabel")
+                cover_url = "N/A"
+                if isinstance(book_data.get('default_cover_edition'), dict) and \
+                    isinstance(book_data['default_cover_edition'].get('image'), dict) and \
+                    book_data['default_cover_edition']['image'].get('url'):
+                        cover_url = book_data['default_cover_edition']['image']['url']
+
+                self.book_cover_label = QLabel(f"Cover URL: {cover_url}")
+                self.book_cover_label.setObjectName("bookCoverLabel") # Keep object name
                 self.info_layout.addWidget(self.book_cover_label)
+
+                if cover_url != "N/A" and hasattr(self, 'image_downloader') and hasattr(self, 'actual_cover_display_label'):
+                    pixmap = self.image_downloader.download_image(cover_url)
+                    if pixmap and not pixmap.isNull():
+                        self.actual_cover_display_label.setPixmap(pixmap.scaled( # Optional scaling
+                            self.actual_cover_display_label.size(), 
+                            Qt.KeepAspectRatio, 
+                            Qt.SmoothTransformation
+                        ))
+                    else:
+                        self.actual_cover_display_label.setText("Cover not available") # Or clear it
+                else:
+                    if hasattr(self, 'actual_cover_display_label'):
+                        self.actual_cover_display_label.setText("Cover URL not found") # Or clear it
 
                 # Populate the Editions Table
                 editions = book_data.get('editions', [])
@@ -290,6 +428,10 @@ def main():
     """
     Main function to initialize and run the application.
     """
+    # Configure logging to show INFO level messages
+    # This should be done before any loggers are used extensively if you want
+    # to capture early messages, or at least before the parts you're interested in.
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(name)s:%(message)s')
     app = QApplication(sys.argv)
 
     app.setStyleSheet("""
@@ -297,7 +439,7 @@ def main():
             background-color: #3c3c3c; 
             color: #cccccc; 
             font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
-            font-size: 10pt; /* <<< Added to increase default font size */
+            font-size: 12pt; /* <<< Added to increase default font size */
         }
         QMainWindow {
             background-color: #2b2b2b;
@@ -325,7 +467,7 @@ def main():
             font-weight: bold; /* This will remain bold */
             border: 1px solid #555555;
             border-radius: 4px;
-            margin-top: 6px; 
+            margin-top: 20px; /* Increased to accommodate larger font title */
         }
         QGroupBox::title {
             subcontrol-origin: margin;
