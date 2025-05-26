@@ -1,10 +1,10 @@
 # ABOUTME: This file is the main entry point for the Librarian-Assistant application.
 # ABOUTME: It defines the main window and initializes the application.
 import sys
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QTabWidget, QWidget, QLineEdit, QTextEdit, QTableWidget, QTableWidgetItem, QScrollArea,
-                             QVBoxLayout, QLabel, QGroupBox, QStatusBar, QPushButton)
-from PyQt5.QtGui import QIntValidator, QValidator # Import QIntValidator and QValidator
-from PyQt5.QtCore import Qt # For dialog results, though not directly used in this snippet
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QTabWidget, QWidget, QLineEdit, QTableWidget, QTableWidgetItem, QScrollArea,
+                             QVBoxLayout, QLabel, QGroupBox, QPushButton)
+from PyQt5.QtGui import QIntValidator, QValidator
+from PyQt5.QtCore import Qt
 
 # Import ConfigManager for Prompt 2.2
 from librarian_assistant.config_manager import ConfigManager
@@ -13,16 +13,64 @@ from librarian_assistant.token_dialog import TokenDialog
 # Import ApiClient for Prompt 3.3
 from librarian_assistant.api_client import ApiClient
 # Import custom exceptions for Prompt 3.3
-from librarian_assistant.exceptions import ApiException, ApiNotFoundError, ApiAuthError, NetworkError, ApiProcessingError
+from librarian_assistant.exceptions import ApiException, ApiNotFoundError
 # Import ImageDownloader for Prompt 4.1
 from librarian_assistant.image_downloader import ImageDownloader
 
+import webbrowser # For Prompt 4.3
 import logging
 logger = logging.getLogger(__name__)
 
 # Constants
 HARDCOVER_API_BASE_URL = "https://api.hardcover.app/v1/graphql"
+MAX_DESC_CHARS = 500 # Define max characters for display
 
+class ClickableLabel(QLabel):
+    """
+    A QLabel subclass that can be made clickable and emits a signal with a URL.
+    """
+    # No custom signal needed; QLabel.linkActivated will be used.
+
+    def __init__(self, parent=None): # Text will be set via setContent
+        super().__init__(parent)
+        self._url_for_link_part = "" # Store the URL associated with the link part
+        self.setTextFormat(Qt.RichText)
+        self.setOpenExternalLinks(False) # Important: emit linkActivated instead of QLabel opening it
+        self.setCursor(Qt.ArrowCursor) # Default cursor
+        # Default style for the non-link part (taken from main stylesheet)
+        self._default_text_color = "#cccccc" # Matches QWidget color in stylesheet
+        self._link_text_color = "#6cb6ff"    # A common link blue
+
+    def setContent(self, prefix: str, value_part: str, url_for_value_part: str = ""):
+        """
+        Sets the content of the label.
+        - prefix: The static text part (e.g., "Slug: ").
+        - value_part: The dynamic text part that might be a link (e.g., "my-book-slug" or "N/A").
+        - url_for_value_part: The URL to associate with the value_part if it's linkable.
+        """
+        self._url_for_link_part = url_for_value_part
+        current_value_part = value_part if value_part is not None else "N/A"
+
+        is_value_linkable = bool(self._url_for_link_part) and current_value_part != "N/A"
+
+        if is_value_linkable:
+            # Construct HTML with styled prefix and link
+            # Ensure HTML special characters in prefix and value_part are escaped if necessary,
+            # but for simple text like "Slug: " and typical slugs/IDs, it's often fine.
+            # For robustness, one might use Qt.escape().
+            html_text = (
+                f"<span style='color:{self._default_text_color};'>{prefix}</span>"
+                f"<a href='{self._url_for_link_part}' style='color:{self._link_text_color}; text-decoration:underline;'>{current_value_part}</a>"
+            )
+            self.setText(html_text)
+            self.setCursor(Qt.PointingHandCursor)
+            self.setToolTip(f"Open: {self._url_for_link_part}")
+        else:
+            plain_text = f"{prefix}{current_value_part}"
+            self.setText(plain_text) # This will display with default QLabel styling (inherited)
+            self.setCursor(Qt.ArrowCursor)
+            self.setToolTip("")
+            self.setStyleSheet(f"color: {self._default_text_color}; text-decoration: none;") # Ensure non-link style
 class MainWindow(QMainWindow):
     """
     Main application window for Librarian-Assistant.
@@ -89,9 +137,11 @@ class MainWindow(QMainWindow):
         self.book_title_label.setObjectName("bookTitleLabel")
         self.info_layout.addWidget(self.book_title_label)
 
-        self.book_slug_label = QLabel("Slug: Not Fetched")
+        self.book_slug_label = ClickableLabel(self) # Pass parent
         self.book_slug_label.setObjectName("bookSlugLabel")
+        self.book_slug_label.setContent("Slug: ", "Not Fetched", "")
         self.info_layout.addWidget(self.book_slug_label)
+        self.book_slug_label.linkActivated.connect(self._open_web_link)
 
         self.book_authors_label = QLabel("Authors: Not Fetched")
         self.book_authors_label.setObjectName("bookAuthorsLabel")
@@ -116,21 +166,29 @@ class MainWindow(QMainWindow):
         self.default_editions_group_box.setObjectName("defaultEditionsGroupBox")
         default_editions_layout_init = QVBoxLayout(self.default_editions_group_box) # Layout for init
 
-        self.default_audio_label = QLabel("Default Audio Edition: N/A")
+        self.default_audio_label = ClickableLabel(self)
         self.default_audio_label.setObjectName("defaultAudioLabel")
+        self.default_audio_label.setContent("Default Audio Edition: ", "N/A", "")
         default_editions_layout_init.addWidget(self.default_audio_label)
+        self.default_audio_label.linkActivated.connect(self._open_web_link)
 
-        self.default_cover_label_info = QLabel("Default Cover Edition: N/A")
+        self.default_cover_label_info = ClickableLabel(self)
         self.default_cover_label_info.setObjectName("defaultCoverLabelInfo")
+        self.default_cover_label_info.setContent("Default Cover Edition: ", "N/A", "")
         default_editions_layout_init.addWidget(self.default_cover_label_info)
+        self.default_cover_label_info.linkActivated.connect(self._open_web_link)
 
-        self.default_ebook_label = QLabel("Default E-book Edition: N/A")
+        self.default_ebook_label = ClickableLabel(self)
         self.default_ebook_label.setObjectName("defaultEbookLabel")
+        self.default_ebook_label.setContent("Default E-book Edition: ", "N/A", "")
         default_editions_layout_init.addWidget(self.default_ebook_label)
+        self.default_ebook_label.linkActivated.connect(self._open_web_link)
 
-        self.default_physical_label = QLabel("Default Physical Edition: N/A")
+        self.default_physical_label = ClickableLabel(self)
         self.default_physical_label.setObjectName("defaultPhysicalLabel")
+        self.default_physical_label.setContent("Default Physical Edition: ", "N/A", "")
         default_editions_layout_init.addWidget(self.default_physical_label)
+        self.default_physical_label.linkActivated.connect(self._open_web_link)
         self.info_layout.addWidget(self.default_editions_group_box)
 
         self.book_cover_label = QLabel("Cover URL: Not Fetched")
@@ -238,10 +296,6 @@ class MainWindow(QMainWindow):
             logger.error(f"Fetch Data clicked with non-integer Book ID that bypassed validation: {book_id_str}")
             return
 
-        # Clear previous data before fetching new data
-        self._clear_layout(self.book_info_area.layout())
-        self._clear_layout(self.editions_table_area.layout())
-        # Add placeholder labels back after clearing, or handle UI population directly
         # For now, we'll just clear. The population step will add new widgets.
         # If we want placeholders when no data is present, that logic would go elsewhere or be part of error handling.
 
@@ -251,12 +305,12 @@ class MainWindow(QMainWindow):
             book_data = self.api_client.get_book_by_id(book_id_int)
 
             if book_data:
-                # Clear previous data now that we know the fetch was successful
-                # (Moved clearing here to only clear on successful fetch attempt that returns data)
-                # Actually, it's better to clear *before* attempting to populate,
-                # so the previous change of clearing before the try block is fine.
-                # The test expects clearing to happen if book_data is returned.
-
+                # Clear previous data from info_layout and editions_layout before fetching new data
+                # This ensures old data is removed even if the new fetch fails or returns no data.
+                # We will re-add widgets as needed.
+                self._clear_layout(self.info_layout) # Clear general info area
+                self._clear_layout(self.editions_layout) # Clear editions table area
+                self.editions_layout.addWidget(self.editions_table_widget) # Re-add table
                 self.status_bar.showMessage(f"Book data fetched successfully for ID {book_id_str}.")
                 logger.info(f"Successfully fetched data for Book ID {book_id_int}: {book_data.get('title', 'N/A')}")
                 logger.info(f"Complete book_data received by main.py for Book ID {book_id_int}: {book_data}")
@@ -269,8 +323,11 @@ class MainWindow(QMainWindow):
 
                 # Populate Slug
                 slug_text = book_data.get('slug')
-                self.book_slug_label = QLabel(f"Slug: {slug_text if slug_text is not None else 'N/A'}")
+                slug_url_val = f"https://hardcover.app/books/{slug_text}" if slug_text else ""
+                self.book_slug_label = ClickableLabel(self) # Re-create after clear
                 self.book_slug_label.setObjectName("bookSlugLabel")
+                self.book_slug_label.setContent("Slug: ", slug_text if slug_text else "N/A", slug_url_val)
+                self.book_slug_label.linkActivated.connect(self._open_web_link)
                 self.info_layout.addWidget(self.book_slug_label)
 
                 # Book ID
@@ -331,32 +388,48 @@ class MainWindow(QMainWindow):
                 default_editions_layout_dyn = QVBoxLayout(self.default_editions_group_box)
 
                 # Helper to format default edition info
-                def get_default_edition_text(edition_data, edition_name_prefix):
+                def get_default_edition_parts(edition_data, edition_name_prefix_str):
+                    prefix = f"{edition_name_prefix_str}: "
                     if isinstance(edition_data, dict):
-                        fmt = edition_data.get('edition_format', 'N/A')
-                        ed_id = edition_data.get('id', 'N/A')
-                        return f"{edition_name_prefix}: {fmt} (ID: {ed_id})"
-                    return f"{edition_name_prefix}: N/A"
+                        fmt = edition_data.get('edition_format')
+                        ed_id = edition_data.get('id')
+                        value_part_text = f"{fmt if fmt else 'N/A'} (ID: {ed_id if ed_id else 'N/A'})"
+                        url = f"https://hardcover.app/editions/{ed_id}" if ed_id else ""
+                        return prefix, value_part_text, url
+                    return prefix, "N/A", ""
 
-                self.default_audio_label = QLabel(get_default_edition_text(book_data.get('default_audio_edition'), "Default Audio Edition"))
+                audio_prefix, audio_value_part, audio_url = get_default_edition_parts(book_data.get('default_audio_edition'), "Default Audio Edition")
+                self.default_audio_label = ClickableLabel(self)
                 self.default_audio_label.setObjectName("defaultAudioLabel")
+                self.default_audio_label.setContent(audio_prefix, audio_value_part, audio_url)
+                self.default_audio_label.linkActivated.connect(self._open_web_link)
                 default_editions_layout_dyn.addWidget(self.default_audio_label)
 
-                self.default_cover_label_info = QLabel(get_default_edition_text(book_data.get('default_cover_edition'), "Default Cover Edition"))
+                cover_prefix, cover_value_part, cover_url_link = get_default_edition_parts(book_data.get('default_cover_edition'), "Default Cover Edition")
+                self.default_cover_label_info = ClickableLabel(self)
                 self.default_cover_label_info.setObjectName("defaultCoverLabelInfo")
+                self.default_cover_label_info.setContent(cover_prefix, cover_value_part, cover_url_link)
+                self.default_cover_label_info.linkActivated.connect(self._open_web_link)
                 default_editions_layout_dyn.addWidget(self.default_cover_label_info)
 
-                self.default_ebook_label = QLabel(get_default_edition_text(book_data.get('default_ebook_edition'), "Default E-book Edition"))
+                ebook_prefix, ebook_value_part, ebook_url = get_default_edition_parts(book_data.get('default_ebook_edition'), "Default E-book Edition")
+                self.default_ebook_label = ClickableLabel(self)
                 self.default_ebook_label.setObjectName("defaultEbookLabel")
+                self.default_ebook_label.setContent(ebook_prefix, ebook_value_part, ebook_url)
+                self.default_ebook_label.linkActivated.connect(self._open_web_link)
                 default_editions_layout_dyn.addWidget(self.default_ebook_label)
 
-                self.default_physical_label = QLabel(get_default_edition_text(book_data.get('default_physical_edition'), "Default Physical Edition"))
+                physical_prefix, physical_value_part, physical_url = get_default_edition_parts(book_data.get('default_physical_edition'), "Default Physical Edition")
+                self.default_physical_label = ClickableLabel(self)
                 self.default_physical_label.setObjectName("defaultPhysicalLabel")
+                self.default_physical_label.setContent(physical_prefix, physical_value_part, physical_url)
+                self.default_physical_label.linkActivated.connect(self._open_web_link)
                 default_editions_layout_dyn.addWidget(self.default_physical_label)
 
                 self.info_layout.addWidget(self.default_editions_group_box)
 
-                # Cover URL
+                # Cover URL (this is for the main image display, not clickable itself,
+                # the clickable part is default_cover_label_info)
                 cover_url = "N/A"
                 if isinstance(book_data.get('default_cover_edition'), dict) and \
                     isinstance(book_data['default_cover_edition'].get('image'), dict) and \
@@ -416,6 +489,14 @@ class MainWindow(QMainWindow):
         except ApiException as e: # Catch other ApiClient specific exceptions
             self.status_bar.showMessage(f"Error fetching data: {e}")
             logger.error(f"API_CLIENT_ERROR - An API exception occurred for Book ID {book_id_int}: {e}")
+
+    def _open_web_link(self, url: str):
+        """Opens the given URL in the default web browser."""
+        if url:
+            logger.info(f"Opening URL: {url}")
+            webbrowser.open(url)
+        else:
+            logger.warning("Attempted to open an empty URL.")
 
     def _clear_layout(self, layout: QVBoxLayout | None):
         """

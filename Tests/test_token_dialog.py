@@ -67,10 +67,10 @@ def test_token_dialog_ui_elements(qt_app_dialog):
     
     # Check button texts too
     ok_button = dialog.findChild(QPushButton, "okButton")
-    assert ok_button.text().lower() == "ok", "OK button text is not 'OK'." # Case-insensitive check for 'ok'
+    assert ok_button.text().lower() in ["ok", "&ok"], "OK button text is not 'OK'." # Case-insensitive check for 'ok', allowing for ampersand
     
     cancel_button = dialog.findChild(QPushButton, "cancelButton")
-    assert cancel_button.text().lower() == "cancel", "Cancel button text is not 'Cancel'." # Case-insensitive
+    assert cancel_button.text().lower() in ["cancel", "&cancel"], "Cancel button text is not 'Cancel'." # Case-insensitive, allowing for ampersand
 
     dialog.close() # Clean up the dialog
 

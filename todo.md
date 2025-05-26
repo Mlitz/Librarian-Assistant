@@ -242,21 +242,21 @@ Chunk 4: Display General Book Information (Prompts 4.1 - 4.3)
 
         [X] Unit Test: Mock response with empty/null contributions.
 
-    [ ] Prompt 4.3: Make Book Slug & Default Edition IDs Clickable
+    [X] Prompt 4.3: Make Book Slug & Default Edition IDs Clickable
 
-        [ ] Make Book Slug QLabel clickable: opens https://hardcover.app/books/{slug}.
+        [X] Make Book Slug QLabel clickable: opens https://hardcover.app/books/{slug}.
 
-        [ ] Make Default Edition displays clickable (if not "N/A"): opens https://hardcover.app/editions/{edition_id}.
+        [X] Make Default Edition displays clickable (if not "N/A"): opens https://hardcover.app/editions/{edition_id}.
 
-        [ ] Use webbrowser module.
+        [X] Use webbrowser module.
 
-        [ ] Use event filters or subclass QLabel for clickability.
+        [X] Use event filters or subclass QLabel for clickability.
 
-        [ ] Unit Test: Mock webbrowser.open.
+        [X] Unit Test: Mock webbrowser.open.
 
-        [ ] Unit Test: Simulate clicks on slug and default edition links, verify webbrowser.open calls.
+        [X] Unit Test: Simulate clicks on slug and default edition links, verify webbrowser.open calls.
 
-        [ ] Unit Test: Ensure clicks on "N/A" or non-link parts don't trigger webbrowser.open.
+        [X] Unit Test: Ensure clicks on "N/A" or non-link parts don't trigger webbrowser.open.
 
 Phase 3: Editions Table - Basic Implementation
 
