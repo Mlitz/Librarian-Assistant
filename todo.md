@@ -318,45 +318,45 @@ Phase 3: Editions Table - Basic Implementation
 
 Phase 4: Editions Table - Contributor Columns
 
-    [ ] Contributor Data Parsing Logic
+    [X] Contributor Data Parsing Logic
 
-        [ ] Create a helper function/method to process cached_contributors for an edition.
+        [X] Create a helper function/method to process cached_contributors for an edition.
 
-        [ ] This function should categorize contributors by role (Author, Illustrator, etc., from spec.md Appendix B) and handle the contribution: null case for primary authors.
+        [X] This function should categorize contributors by role (Author, Illustrator, etc., from spec.md Appendix B) and handle the contribution: null case for primary authors.
 
-    [ ] Dynamic Contributor Column Header Management
+    [X] Dynamic Contributor Column Header Management
 
-        [ ] Before populating the table with new book data, clear existing contributor columns.
+        [X] Before populating the table with new book data, clear existing contributor columns.
 
-        [ ] Analyze all editions of the fetched book to find all unique contributor roles present.
+        [X] Analyze all editions of the fetched book to find all unique contributor roles present.
 
-        [ ] For each unique role found, dynamically add up to 10 numbered columns to the QTableWidget (e.g., "Author 1", "Author 2", ..., "Illustrator 1", ...).
+        [X] For each unique role found, dynamically add up to 10 numbered columns to the QTableWidget (e.g., "Author 1", "Author 2", ..., "Illustrator 1", ...).
 
-    [ ] Populating Contributor Columns in Table
+    [X] Populating Contributor Columns in Table
 
-        [ ] For each edition row:
+        [X] For each edition row:
 
-            [ ] Get its processed contributor data.
+            [X] Get its processed contributor data.
 
-            [ ] Populate "Author" columns: first contribution: null as "Author 1", then explicit "Author" contributions.
+            [X] Populate "Author" columns: first contribution: null as "Author 1", then explicit "Author" contributions.
 
-            [ ] Populate other role columns (e.g., "Narrator 1", "Narrator 2") based on their contribution value.
+            [X] Populate other role columns (e.g., "Narrator 1", "Narrator 2") based on their contribution value.
 
-            [ ] Display "N/A" in cells for which an edition has no contributor (e.g., if an edition has 1 narrator, "Narrator 2" to "Narrator 10" for that row show "N/A").
+            [X] Display "N/A" in cells for which an edition has no contributor (e.g., if an edition has 1 narrator, "Narrator 2" to "Narrator 10" for that row show "N/A").
 
-    [ ] Column Visibility (Role-Level)
+    [X] Column Visibility (Role-Level)
 
-        [ ] After determining unique roles for a book, if a predefined role (e.g., "Illustrator") has no contributors across any edition of that book, do not create/show the "Illustrator 1-10" columns for that specific book's results.
+        [X] After determining unique roles for a book, if a predefined role (e.g., "Illustrator") has no contributors across any edition of that book, do not create/show the "Illustrator 1-10" columns for that specific book's results.
 
-    [ ] Unit Tests for Contributor Columns
+    [X] Unit Tests for Contributor Columns
 
-        [ ] Test contributor data parsing logic.
+        [X] Test contributor data parsing logic.
 
-        [ ] Test dynamic column header generation based on mock data with various contributor roles.
+        [X] Test dynamic column header generation based on mock data with various contributor roles.
 
-        [ ] Test correct population of contributor cells, including "Author" logic and "N/A" for missing ones.
+        [X] Test correct population of contributor cells, including "Author" logic and "N/A" for missing ones.
 
-        [ ] Test role-level column visibility (e.g., "Illustrator" columns hidden if no illustrators).
+        [X] Test role-level column visibility (e.g., "Illustrator" columns hidden if no illustrators).
 
 Phase 5: Editions Table - Advanced Interactivity
 

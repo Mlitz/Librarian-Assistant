@@ -38,7 +38,7 @@ class TestMainWindow(unittest.TestCase):
         # Check for the Book ID QLabel
         book_id_label = api_input_area.findChild(QLabel, "bookIdLabel")
         self.assertIsNotNone(book_id_label, "Book ID QLabel not found.")
-        self.assertEqual(book_id_label.text(), "Book ID:")
+        self.assertEqual(book_id_label.text(), "<span style='color:#999999;'>Book ID:</span>")
 
         # Check for the Book ID QLineEdit
         book_id_line_edit = api_input_area.findChild(QLineEdit, "bookIdLineEdit")
@@ -292,7 +292,8 @@ class TestMainWindow(unittest.TestCase):
         # Check the instance attributes which should point to the new, populated widgets
         # Ensure these objectNames match what's set in your MainWindow's UI setup.
         self.assertIsNotNone(self.window.book_title_label, "Book title QLabel attribute not updated.")
-        self.assertEqual(self.window.book_title_label.text(), "Title: The Great Test Book")
+        self.assertIn("<span style='color:#999999;'>Title: </span>", self.window.book_title_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>The Great Test Book</span>", self.window.book_title_label.text())
         # Parent widget check might be tricky if layout is cleared and widgets re-added.
         # Let's ensure it's a child of the main content widget of the scroll area.
 
@@ -304,13 +305,16 @@ class TestMainWindow(unittest.TestCase):
 
         self.assertIsNotNone(self.window.book_authors_label, "Book authors QLabel attribute not updated.")
         # Assuming authors are joined by ", " in main.py
-        self.assertEqual(self.window.book_authors_label.text(), "Authors: Author One, Author Two")
+        self.assertIn("<span style='color:#999999;'>Authors: </span>", self.window.book_authors_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>Author One, Author Two</span>", self.window.book_authors_label.text())
 
         self.assertIsNotNone(self.window.book_id_queried_label, "Book ID (queried) QLabel attribute not updated.")
-        self.assertEqual(self.window.book_id_queried_label.text(), "Book ID (Queried): 123") # From input
+        self.assertIn("<span style='color:#999999;'>Book ID (Queried): </span>", self.window.book_id_queried_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>123</span>", self.window.book_id_queried_label.text()) # From input
 
         self.assertIsNotNone(self.window.book_total_editions_label, "Total editions QLabel attribute not updated.")
-        self.assertEqual(self.window.book_total_editions_label.text(), "Total Editions: 5")
+        self.assertIn("<span style='color:#999999;'>Total Editions: </span>", self.window.book_total_editions_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>5</span>", self.window.book_total_editions_label.text())
 
 
         # Test for the new QLabel based description display
@@ -326,12 +330,14 @@ class TestMainWindow(unittest.TestCase):
             expected_display_text = f"Description: {full_mock_description}"
             expected_tooltip_text = "" # Or full_mock_description if tooltip is always set
             
-        self.assertEqual(self.window.book_description_label.text(), expected_display_text)
+        self.assertIn("<span style='color:#999999;'>Description: </span>", self.window.book_description_label.text())
+        self.assertIn(f"<span style='color:#e0e0e0;'>{full_mock_description}</span>", self.window.book_description_label.text())
         self.assertEqual(self.window.book_description_label.toolTip(), expected_tooltip_text)
         
         self.assertIsNotNone(self.window.book_cover_label, "Book cover QLabel attribute not updated.")
         # This assumes book_cover_label displays the URL as text.
-        self.assertEqual(self.window.book_cover_label.text(), "Cover URL: http://example.com/great_test_book_cover.jpg")
+        self.assertIn("<span style='color:#999999;'>Cover URL: </span>", self.window.book_cover_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>http://example.com/great_test_book_cover.jpg</span>", self.window.book_cover_label.text())
 
         # Check Default Editions GroupBox and its labels
         self.assertIsNotNone(self.window.default_editions_group_box, "Default Editions GroupBox not found after fetch.")
@@ -496,27 +502,33 @@ class TestMainWindow(unittest.TestCase):
         # Check labels directly attached to MainWindow instance
         # Ensure they are ClickableLabels where appropriate
         self.assertIsNotNone(self.window.book_title_label, "Book Title QLabel not found.")
-        self.assertEqual(self.window.book_title_label.text(), "Title: Not Fetched")
+        self.assertIn("<span style='color:#999999;'>Title: </span>", self.window.book_title_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>Not Fetched</span>", self.window.book_title_label.text())
 
         self.assertIsNotNone(self.window.book_slug_label, "Book Slug QLabel not found.")
         self.assertIsInstance(self.window.book_slug_label, ClickableLabel)
-        self.assertEqual(self.window.book_slug_label.text(), "Slug: Not Fetched")
+        self.assertIn("<span style='color:#999999;'>Slug: </span>", self.window.book_slug_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>Not Fetched</span>", self.window.book_slug_label.text())
         self.assertEqual(self.window.book_slug_label.toolTip(), "") # No link initially
 
         self.assertIsNotNone(self.window.book_authors_label, "Book Authors QLabel not found.")
-        self.assertEqual(self.window.book_authors_label.text(), "Authors: Not Fetched")
+        self.assertIn("<span style='color:#999999;'>Authors: </span>", self.window.book_authors_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>Not Fetched</span>", self.window.book_authors_label.text())
 
         self.assertIsNotNone(self.window.book_id_queried_label, "Book ID (Queried) QLabel not found.")
-        self.assertEqual(self.window.book_id_queried_label.text(), "Book ID (Queried): Not Fetched")
+        self.assertIn("<span style='color:#999999;'>Book ID (Queried): </span>", self.window.book_id_queried_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>Not Fetched</span>", self.window.book_id_queried_label.text())
         # self.assertNotIsInstance(self.window.book_id_queried_label, ClickableLabel) # Should not be clickable
 
         self.assertIsNotNone(self.window.book_total_editions_label, "Total Editions QLabel not found.")
-        self.assertEqual(self.window.book_total_editions_label.text(), "Total Editions: Not Fetched")
+        self.assertIn("<span style='color:#999999;'>Total Editions: </span>", self.window.book_total_editions_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>Not Fetched</span>", self.window.book_total_editions_label.text())
         # self.assertNotIsInstance(self.window.book_total_editions_label, ClickableLabel)
 
         # Check for the new QLabel for description
         self.assertIsNotNone(self.window.book_description_label, "Book Description QLabel not found.")
-        self.assertEqual(self.window.book_description_label.text(), "Description: Not Fetched")
+        self.assertIn("<span style='color:#999999;'>Description: </span>", self.window.book_description_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>Not Fetched</span>", self.window.book_description_label.text())
         self.assertEqual(self.window.book_description_label.toolTip(), "", "Initial tooltip for description should be empty.")
         # self.assertNotIsInstance(self.window.book_description_label, ClickableLabel)
 
@@ -529,31 +541,36 @@ class TestMainWindow(unittest.TestCase):
         # Check labels within Default Editions GroupBox
         self.assertIsNotNone(self.window.default_audio_label, "Default Audio Label not found.")
         self.assertIsInstance(self.window.default_audio_label, ClickableLabel)
-        self.assertEqual(self.window.default_audio_label.text(), "Default Audio Edition: N/A")
+        self.assertIn("<span style='color:#999999;'>Default Audio Edition: </span>", self.window.default_audio_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>N/A</span>", self.window.default_audio_label.text())
         self.assertIs(self.window.default_audio_label.parentWidget(), default_editions_gb, "Default Audio Label not in correct group box.")
         self.assertEqual(self.window.default_audio_label.toolTip(), "")
 
         self.assertIsNotNone(self.window.default_cover_label_info, "Default Cover Label Info not found.")
         self.assertIsInstance(self.window.default_cover_label_info, ClickableLabel)
-        self.assertEqual(self.window.default_cover_label_info.text(), "Default Cover Edition: N/A")
+        self.assertIn("<span style='color:#999999;'>Default Cover Edition: </span>", self.window.default_cover_label_info.text())
+        self.assertIn("<span style='color:#e0e0e0;'>N/A</span>", self.window.default_cover_label_info.text())
         self.assertIs(self.window.default_cover_label_info.parentWidget(), default_editions_gb, "Default Cover Label Info not in correct group box.")
         self.assertEqual(self.window.default_cover_label_info.toolTip(), "")
 
         self.assertIsNotNone(self.window.default_ebook_label, "Default E-book Label not found.")
         self.assertIsInstance(self.window.default_ebook_label, ClickableLabel)
-        self.assertEqual(self.window.default_ebook_label.text(), "Default E-book Edition: N/A")
+        self.assertIn("<span style='color:#999999;'>Default E-book Edition: </span>", self.window.default_ebook_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>N/A</span>", self.window.default_ebook_label.text())
         self.assertIs(self.window.default_ebook_label.parentWidget(), default_editions_gb, "Default E-book Label not in correct group box.")
         self.assertEqual(self.window.default_ebook_label.toolTip(), "")
 
         self.assertIsNotNone(self.window.default_physical_label, "Default Physical Label not found.")
         self.assertIsInstance(self.window.default_physical_label, ClickableLabel)
-        self.assertEqual(self.window.default_physical_label.text(), "Default Physical Edition: N/A")
+        self.assertIn("<span style='color:#999999;'>Default Physical Edition: </span>", self.window.default_physical_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>N/A</span>", self.window.default_physical_label.text())
         self.assertIs(self.window.default_physical_label.parentWidget(), default_editions_gb, "Default Physical Label not in correct group box.")
         self.assertEqual(self.window.default_physical_label.toolTip(), "")
 
         # Check the main book cover URL label (which is separate from default editions info)
         self.assertIsNotNone(self.window.book_cover_label, "Book Cover URL QLabel not found.")
-        self.assertEqual(self.window.book_cover_label.text(), "Cover URL: Not Fetched")
+        self.assertIn("<span style='color:#999999;'>Cover URL: </span>", self.window.book_cover_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>Not Fetched</span>", self.window.book_cover_label.text())
 
     @patch.object(ApiClient, 'get_book_by_id')
     def test_fetch_data_populates_book_info_with_null_defaults(self, mock_api_get_book_by_id):
@@ -581,25 +598,36 @@ class TestMainWindow(unittest.TestCase):
         fetch_data_button.click()
 
         # Check labels for "N/A"
-        self.assertEqual(self.window.book_title_label.text(), "Title: Book With Missing Info") # Title is present
+        self.assertIn("<span style='color:#999999;'>Title: </span>", self.window.book_title_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>Book With Missing Info</span>", self.window.book_title_label.text()) # Title is present
 
-        self.assertEqual(self.window.book_slug_label.text(), "Slug: N/A")
-        self.assertEqual(self.window.book_authors_label.text(), "Authors: N/A")
-        self.assertEqual(self.window.book_id_queried_label.text(), "Book ID (Queried): 456") # From input
-        self.assertEqual(self.window.book_total_editions_label.text(), "Total Editions: N/A")
+        self.assertIn("<span style='color:#999999;'>Slug: </span>", self.window.book_slug_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>N/A</span>", self.window.book_slug_label.text())
+        self.assertIn("<span style='color:#999999;'>Authors: </span>", self.window.book_authors_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>N/A</span>", self.window.book_authors_label.text())
+        self.assertIn("<span style='color:#999999;'>Book ID (Queried): </span>", self.window.book_id_queried_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>456</span>", self.window.book_id_queried_label.text()) # From input
+        self.assertIn("<span style='color:#999999;'>Total Editions: </span>", self.window.book_total_editions_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>N/A</span>", self.window.book_total_editions_label.text())
         
         # Description label
-        self.assertEqual(self.window.book_description_label.text(), "Description: N/A")
+        self.assertIn("<span style='color:#999999;'>Description: </span>", self.window.book_description_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>N/A</span>", self.window.book_description_label.text())
         self.assertEqual(self.window.book_description_label.toolTip(), "", "Tooltip should be empty for N/A description")
 
         # Default Editions
-        self.assertEqual(self.window.default_audio_label.text(), "Default Audio Edition: N/A")
-        self.assertEqual(self.window.default_cover_label_info.text(), "Default Cover Edition: N/A")
-        self.assertEqual(self.window.default_ebook_label.text(), "Default E-book Edition: N/A")
-        self.assertEqual(self.window.default_physical_label.text(), "Default Physical Edition: N/A")
+        self.assertIn("<span style='color:#999999;'>Default Audio Edition: </span>", self.window.default_audio_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>N/A</span>", self.window.default_audio_label.text())
+        self.assertIn("<span style='color:#999999;'>Default Cover Edition: </span>", self.window.default_cover_label_info.text())
+        self.assertIn("<span style='color:#e0e0e0;'>N/A</span>", self.window.default_cover_label_info.text())
+        self.assertIn("<span style='color:#999999;'>Default E-book Edition: </span>", self.window.default_ebook_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>N/A</span>", self.window.default_ebook_label.text())
+        self.assertIn("<span style='color:#999999;'>Default Physical Edition: </span>", self.window.default_physical_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>N/A</span>", self.window.default_physical_label.text())
 
         # Main Cover URL Label (derived from default_cover_edition)
-        self.assertEqual(self.window.book_cover_label.text(), "Cover URL: N/A")
+        self.assertIn("<span style='color:#999999;'>Cover URL: </span>", self.window.book_cover_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>N/A</span>", self.window.book_cover_label.text())
 
         # Test that N/A labels are not clickable
         with patch('librarian_assistant.main.webbrowser.open') as mock_webbrowser_open_na:
@@ -683,6 +711,385 @@ class TestMainWindow(unittest.TestCase):
         self.assertEqual(editions_table.item(2, 10).text(), "12:41:18")  # 45678 seconds
         self.assertEqual(editions_table.item(2, 13).text(), "12/25/2025")  # Formatted date
 
+    @patch.object(ApiClient, 'get_book_by_id')
+    def test_editions_table_contributor_columns(self, mock_api_get_book_by_id):
+        """
+        Test that the editions table correctly handles contributor columns:
+        - Dynamic column creation based on roles present
+        - Proper ordering of contributors
+        - contribution:null handled as primary Author
+        - N/A for missing contributors
+        """
+        mock_book_data = {
+            "id": "999",
+            "title": "Test Book with Contributors",
+            "contributions": [],
+            "editions_count": 2,
+            "editions": [
+                {
+                    "id": "ed_with_contributors",
+                    "score": 100,
+                    "title": "Edition with Multiple Contributors",
+                    "cached_contributors": [
+                        {
+                            "author": {"name": "Primary Author", "slug": "primary-author"},
+                            "contribution": None  # Should be Author 1
+                        },
+                        {
+                            "author": {"name": "Second Author", "slug": "second-author"},
+                            "contribution": "Author"  # Should be Author 2
+                        },
+                        {
+                            "author": {"name": "The Narrator", "slug": "narrator-1"},
+                            "contribution": "Narrator"  # Should be Narrator 1
+                        },
+                        {
+                            "author": {"name": "Translator One", "slug": "translator-1"},
+                            "contribution": "Translator"  # Should be Translator 1
+                        }
+                    ],
+                    "reading_format_id": 2,
+                    "pages": None,
+                    "audio_seconds": 3600,
+                },
+                {
+                    "id": "ed_fewer_contributors",
+                    "score": 90,
+                    "title": "Edition with Fewer Contributors",
+                    "cached_contributors": [
+                        {
+                            "author": {"name": "Solo Author", "slug": "solo-author"},
+                            "contribution": None  # Should be Author 1
+                        }
+                    ],
+                    "reading_format_id": 1,
+                    "pages": 200,
+                }
+            ]
+        }
+        mock_api_get_book_by_id.return_value = mock_book_data
+
+        book_id_line_edit = self.window.findChild(QLineEdit, "bookIdLineEdit")
+        fetch_data_button = self.window.findChild(QPushButton, "fetchDataButton")
+
+        book_id_line_edit.setText("999")
+        fetch_data_button.click()
+
+        editions_table = self.window.editions_table_widget
+        
+        # Check that contributor columns were added
+        headers = [editions_table.horizontalHeaderItem(i).text() 
+                  for i in range(editions_table.columnCount())]
+        
+        # Should have Author (2), Narrator (1), and Translator (1) columns based on actual data
+        self.assertIn("Author 1", headers)
+        self.assertIn("Author 2", headers)  # Second Author in first edition
+        self.assertNotIn("Author 3", headers)  # No more than 2 authors
+        self.assertIn("Narrator 1", headers)
+        self.assertNotIn("Narrator 2", headers)  # Only 1 narrator in data
+        self.assertIn("Translator 1", headers)
+        self.assertNotIn("Translator 2", headers)  # Only 1 translator in data
+        
+        # Should NOT have roles that aren't present
+        self.assertNotIn("Illustrator 1", headers)
+        self.assertNotIn("Editor 1", headers)
+        
+        # Find column indices
+        id_col = headers.index("id")
+        author1_col = headers.index("Author 1")
+        author2_col = headers.index("Author 2")
+        narrator1_col = headers.index("Narrator 1")
+        translator1_col = headers.index("Translator 1")
+        
+        # Find which row has which edition (table is sorted by score desc)
+        # Edition with score 100 should be first
+        row_with_contributors = 0 if editions_table.item(0, id_col).text() == "ed_with_contributors" else 1
+        row_fewer_contributors = 1 - row_with_contributors
+        
+        # Check edition with multiple contributors
+        self.assertEqual(editions_table.item(row_with_contributors, author1_col).text(), "Primary Author")
+        self.assertEqual(editions_table.item(row_with_contributors, author2_col).text(), "Second Author")
+        self.assertEqual(editions_table.item(row_with_contributors, narrator1_col).text(), "The Narrator")
+        self.assertEqual(editions_table.item(row_with_contributors, translator1_col).text(), "Translator One")
+        
+        # Check edition with fewer contributors
+        self.assertEqual(editions_table.item(row_fewer_contributors, author1_col).text(), "Solo Author")
+        self.assertEqual(editions_table.item(row_fewer_contributors, author2_col).text(), "N/A")  # No second author
+        self.assertEqual(editions_table.item(row_fewer_contributors, narrator1_col).text(), "N/A")  # No narrator
+        self.assertEqual(editions_table.item(row_fewer_contributors, translator1_col).text(), "N/A")  # No translator
+    
+    def test_process_contributor_data_parsing(self):
+        """Test the _process_contributor_data method handles various contributor scenarios."""
+        # Test data with various contributor scenarios
+        editions = [
+            {
+                'id': 'ed1',
+                'cached_contributors': [
+                    {'author': {'name': 'Primary Author'}, 'contribution': None},  # Primary author
+                    {'author': {'name': 'Secondary Author'}, 'contribution': 'Author'},
+                    {'author': {'name': 'The Narrator'}, 'contribution': 'Narrator'},
+                    {'author': {'name': 'The Editor'}, 'contribution': 'Editor'}
+                ]
+            },
+            {
+                'id': 'ed2',
+                'cached_contributors': [
+                    {'author': {'name': 'Another Author'}, 'contribution': None},
+                    {'author': {'name': 'Illustrator One'}, 'contribution': 'Illustrator'},
+                    {'author': {'name': 'Illustrator Two'}, 'contribution': 'Illustrator'}
+                ]
+            },
+            {
+                'id': 'ed3',
+                'cached_contributors': []  # Edition with no contributors
+            }
+        ]
+        
+        result = self.window._process_contributor_data(editions)
+        
+        # Check active roles are in the correct order (predefined order maintained)
+        expected_roles = ['Author', 'Illustrator', 'Editor', 'Narrator']  # Only roles that exist in data
+        self.assertEqual(result['active_roles'], expected_roles)
+        
+        # Check contributors by edition
+        contributors = result['contributors_by_edition']
+        
+        # Edition 1 checks
+        self.assertIn('ed1', contributors)
+        self.assertEqual(contributors['ed1']['Author'], ['Primary Author', 'Secondary Author'])
+        self.assertEqual(contributors['ed1']['Narrator'], ['The Narrator'])
+        self.assertEqual(contributors['ed1']['Editor'], ['The Editor'])
+        
+        # Edition 2 checks
+        self.assertIn('ed2', contributors)
+        self.assertEqual(contributors['ed2']['Author'], ['Another Author'])
+        self.assertEqual(contributors['ed2']['Illustrator'], ['Illustrator One', 'Illustrator Two'])
+        
+        # Edition 3 checks
+        self.assertIn('ed3', contributors)
+        self.assertEqual(contributors['ed3'], {})  # No contributors
+        
+        # Check max contributors per role
+        max_contributors = result['max_contributors_per_role']
+        self.assertEqual(max_contributors['Author'], 2)  # Ed1 has 2 authors
+        self.assertEqual(max_contributors['Illustrator'], 2)  # Ed2 has 2 illustrators
+        self.assertEqual(max_contributors['Editor'], 1)  # Ed1 has 1 editor
+        self.assertEqual(max_contributors['Narrator'], 1)  # Ed1 has 1 narrator
+    
+    @patch.object(ApiClient, 'get_book_by_id')
+    def test_contributor_column_visibility(self, mock_api_get_book_by_id):
+        """Test that only roles with contributors get columns created."""
+        # Mock data with only Authors and Narrators (no Illustrators, Editors, etc.)
+        mock_response = {
+            'id': 12345,
+            'name': 'Test Book',
+            'title': 'Test Book',
+            'slug': 'test-book',
+            'description': 'Test description',
+            'editions_count': 2,
+            'contributions': [],
+            'default_edition': {'audio': None, 'cover': None, 'ebook': None, 'physical': None},
+            'editions': [
+                        {
+                            'id': 'ed1',
+                            'score': 100,
+                            'title': 'Edition with Author and Narrator',
+                            'subtitle': None,
+                            'image': {'url': 'http://example.com/cover.jpg'},
+                            'isbn_10': '1234567890',
+                            'isbn_13': '1234567890123',
+                            'asin': 'B001',
+                            'reading_format_id': 1,
+                            'pages': 300,
+                            'audio_seconds': None,
+                            'edition_format': 'Hardcover',
+                            'edition_information': 'First edition',
+                            'release_date': '2023-01-01',
+                            'publisher': {'name': 'Test Publisher'},
+                            'language': {'language': 'English'},
+                            'country': {'name': 'United States'},
+                            'cached_contributors': [
+                                {'author': {'name': 'Author One'}, 'contribution': None},
+                                {'author': {'name': 'Narrator One'}, 'contribution': 'Narrator'}
+                            ]
+                        },
+                        {
+                            'id': 'ed2', 
+                            'score': 90,
+                            'title': 'Edition with only Author',
+                            'subtitle': None,
+                            'image': None,
+                            'isbn_10': None,
+                            'isbn_13': None,
+                            'asin': None,
+                            'reading_format_id': 4,
+                            'pages': None,
+                            'audio_seconds': None,
+                            'edition_format': 'E-book',
+                            'edition_information': None,
+                            'release_date': None,
+                            'publisher': None,
+                            'language': None,
+                            'country': None,
+                            'cached_contributors': [
+                                {'author': {'name': 'Author Two'}, 'contribution': 'Author'}
+                            ]
+                        }
+                    ]
+        }
+        
+        # Set up the mock return value
+        mock_api_get_book_by_id.return_value = mock_response
+        
+        # Mock the config manager to return a token
+        with patch.object(self.window.config_manager, 'load_token', return_value='test_token'):
+            self.window.book_id_line_edit.setText("12345")
+            self.window.fetch_data_button.click()
+            QApplication.processEvents()
+        
+        # Check that only Author and Narrator columns exist
+        editions_table = self.window.editions_table_widget
+        self.assertGreater(editions_table.columnCount(), 0, "Table should have columns after fetch")
+        headers = [editions_table.horizontalHeaderItem(i).text() for i in range(editions_table.columnCount())]
+        
+        # Should have only Author 1 and Narrator 1 columns (based on test data)
+        self.assertIn("Author 1", headers)
+        self.assertIn("Narrator 1", headers)
+        
+        # Should NOT have additional Author/Narrator columns beyond what's needed
+        for i in range(2, 11):
+            self.assertNotIn(f"Author {i}", headers)
+            self.assertNotIn(f"Narrator {i}", headers)
+        
+        # Should NOT have columns for roles with no contributors
+        self.assertNotIn("Illustrator 1", headers)
+        self.assertNotIn("Editor 1", headers)
+        self.assertNotIn("Translator 1", headers)
+        self.assertNotIn("Foreword 1", headers)
+        self.assertNotIn("Cover Artist 1", headers)
+        self.assertNotIn("Other 1", headers)
+    
+    @patch.object(ApiClient, 'get_book_by_id')
+    def test_contributor_null_handling(self, mock_api_get_book_by_id):
+        """Test handling of null contribution field (primary author)."""
+        mock_response = {
+            'id': 12345,
+            'name': 'Test Book',
+            'title': 'Test Book',
+            'slug': 'test-book',
+            'description': 'Test description',
+            'editions_count': 1,
+            'contributions': [],
+            'default_edition': {'audio': None, 'cover': None, 'ebook': None, 'physical': None},
+            'editions': [
+                        {
+                            'id': 'ed1',
+                            'score': 100,
+                            'title': 'Test Edition',
+                            'subtitle': None,
+                            'image': None,
+                            'isbn_10': None,
+                            'isbn_13': None,
+                            'asin': None,
+                            'reading_format_id': 1,
+                            'pages': 200,
+                            'audio_seconds': None,
+                            'edition_format': 'Paperback',
+                            'edition_information': None,
+                            'release_date': None,
+                            'publisher': None,
+                            'language': None,
+                            'country': None,
+                            'cached_contributors': [
+                                {'author': {'name': 'Primary Author'}, 'contribution': None},
+                                {'author': {'name': 'Secondary Author'}, 'contribution': 'Author'},
+                                {'author': {'name': 'Third Author'}, 'contribution': None}
+                            ]
+                        }
+                    ]
+        }
+        
+        # Set up the mock return value
+        mock_api_get_book_by_id.return_value = mock_response
+        
+        # Mock the config manager to return a token
+        with patch.object(self.window.config_manager, 'load_token', return_value='test_token'):
+            self.window.book_id_line_edit.setText("12345")
+            self.window.fetch_data_button.click()
+            QApplication.processEvents()
+        
+        editions_table = self.window.editions_table_widget
+        self.assertGreater(editions_table.columnCount(), 0, "Table should have columns after fetch")
+        headers = [editions_table.horizontalHeaderItem(i).text() for i in range(editions_table.columnCount())]
+        
+        # Find Author columns
+        author1_col = headers.index("Author 1")
+        author2_col = headers.index("Author 2")
+        author3_col = headers.index("Author 3")
+        
+        # First null contribution should be Author 1, then Secondary Author, then Third Author with null
+        self.assertEqual(editions_table.item(0, author1_col).text(), "Primary Author")
+        self.assertEqual(editions_table.item(0, author2_col).text(), "Secondary Author")
+        self.assertEqual(editions_table.item(0, author3_col).text(), "Third Author")
+
+    def test_collapsible_groupboxes(self):
+        """Test that API input and book info areas are collapsible with arrow indicators."""
+        # Check that both group boxes are checkable
+        self.assertTrue(self.window.api_input_area.isCheckable())
+        self.assertTrue(self.window.book_info_area.isCheckable())
+        
+        # Check that both start expanded with down arrows
+        self.assertTrue(self.window.api_input_area.isChecked())
+        self.assertTrue(self.window.book_info_area.isChecked())
+        self.assertIn("▼", self.window.api_input_area.title())
+        self.assertIn("▼", self.window.book_info_area.title())
+        
+        # Test that the handlers exist
+        self.assertTrue(hasattr(self.window, '_on_api_input_toggled'))
+        self.assertTrue(hasattr(self.window, '_on_book_info_toggled'))
+        
+        # Test collapsing API input area
+        initial_height = self.window.api_input_area.maximumHeight()
+        self.window.api_input_area.setChecked(False)
+        # Manually trigger the toggle handler since setChecked doesn't emit toggled
+        self.window._on_api_input_toggled(False)
+        QApplication.processEvents()
+        
+        # Check that the height is limited and arrow changed
+        self.assertEqual(self.window.api_input_area.maximumHeight(), 30)
+        self.assertLess(self.window.api_input_area.maximumHeight(), initial_height)
+        self.assertIn("▶", self.window.api_input_area.title())
+        self.assertNotIn("▼", self.window.api_input_area.title())
+        
+        # Test expanding API input area
+        self.window.api_input_area.setChecked(True)
+        self.window._on_api_input_toggled(True)
+        QApplication.processEvents()
+        
+        # Check that the height is reset and arrow changed back
+        self.assertEqual(self.window.api_input_area.maximumHeight(), 16777215)
+        self.assertIn("▼", self.window.api_input_area.title())
+        self.assertNotIn("▶", self.window.api_input_area.title())
+        
+        # Test the same for book info area
+        initial_info_height = self.window.book_info_area.maximumHeight()
+        self.window.book_info_area.setChecked(False)
+        self.window._on_book_info_toggled(False)
+        QApplication.processEvents()
+        
+        # Check collapsed state with arrow
+        self.assertEqual(self.window.book_info_area.maximumHeight(), 30)
+        self.assertLess(self.window.book_info_area.maximumHeight(), initial_info_height)
+        self.assertIn("▶", self.window.book_info_area.title())
+        
+        # Check expanded state with arrow
+        self.window.book_info_area.setChecked(True)
+        self.window._on_book_info_toggled(True)
+        QApplication.processEvents()
+        
+        self.assertEqual(self.window.book_info_area.maximumHeight(), 16777215)
+        self.assertIn("▼", self.window.book_info_area.title())
+
     @patch('librarian_assistant.main.webbrowser.open')
     def test_open_web_link_called_with_url(self, mock_webbrowser_open):
         """
@@ -736,7 +1143,8 @@ class TestMainWindow(unittest.TestCase):
 
         # Test clicking N/A default audio edition (should NOT open URL)
         # Since it's N/A, linkActivated should not be emitted, but let's verify
-        self.assertEqual(self.window.default_audio_label.text(), "Default Audio Edition: N/A")
+        self.assertIn("<span style='color:#999999;'>Default Audio Edition: </span>", self.window.default_audio_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>N/A</span>", self.window.default_audio_label.text())
         # The label should not have a link when it's N/A
         self.assertFalse("href=" in self.window.default_audio_label.text())
 
@@ -753,7 +1161,8 @@ class TestMainWindow(unittest.TestCase):
         mock_webbrowser_open.reset_mock()
 
         # Test clicking N/A default physical edition (should NOT open URL)
-        self.assertEqual(self.window.default_physical_label.text(), "Default Physical Edition: N/A")
+        self.assertIn("<span style='color:#999999;'>Default Physical Edition: </span>", self.window.default_physical_label.text())
+        self.assertIn("<span style='color:#e0e0e0;'>N/A</span>", self.window.default_physical_label.text())
         self.assertFalse("href=" in self.window.default_physical_label.text())
 
 

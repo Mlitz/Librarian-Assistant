@@ -46,10 +46,10 @@ class TestClickableLabel(unittest.TestCase):
         
         self.label.setContent(prefix, value, url)
         
-        # Check that HTML is set correctly
+        # Check that HTML is set correctly with dimmed prefix
         expected_html = (
-            f"<span style='color:#cccccc;'>{prefix}</span>"
-            f"<a href='{url}' style='color:#6cb6ff; text-decoration:underline;'>{value}</a>"
+            f"<span style='color:#999999;'>{prefix}</span>"
+            f"<a href='{url}' style='color:#9f7aea; text-decoration:underline;'>{value}</a>"
         )
         self.assertEqual(self.label.text(), expected_html)
         
@@ -65,8 +65,12 @@ class TestClickableLabel(unittest.TestCase):
         
         self.label.setContent(prefix, value, url)
         
-        # Check that plain text is set (no HTML link)
-        self.assertEqual(self.label.text(), f"{prefix}{value}")
+        # Check that HTML is set with dimmed prefix (no link for N/A)
+        expected_html = (
+            f"<span style='color:#999999;'>{prefix}</span>"
+            f"<span style='color:#e0e0e0;'>{value}</span>"
+        )
+        self.assertEqual(self.label.text(), expected_html)
         
         # Check cursor and tooltip
         self.assertEqual(self.label.cursor().shape(), Qt.ArrowCursor)
@@ -80,8 +84,12 @@ class TestClickableLabel(unittest.TestCase):
         
         self.label.setContent(prefix, value, url)
         
-        # Check that plain text is set
-        self.assertEqual(self.label.text(), f"{prefix}{value}")
+        # Check that HTML is set with dimmed prefix
+        expected_html = (
+            f"<span style='color:#999999;'>{prefix}</span>"
+            f"<span style='color:#e0e0e0;'>{value}</span>"
+        )
+        self.assertEqual(self.label.text(), expected_html)
         
         # Check cursor and tooltip
         self.assertEqual(self.label.cursor().shape(), Qt.ArrowCursor)
@@ -95,8 +103,12 @@ class TestClickableLabel(unittest.TestCase):
         
         self.label.setContent(prefix, value, url)
         
-        # Should be treated as N/A
-        self.assertEqual(self.label.text(), f"{prefix}N/A")
+        # Should be treated as N/A with HTML formatting
+        expected_html = (
+            f"<span style='color:#999999;'>{prefix}</span>"
+            f"<span style='color:#e0e0e0;'>N/A</span>"
+        )
+        self.assertEqual(self.label.text(), expected_html)
         self.assertEqual(self.label.cursor().shape(), Qt.ArrowCursor)
     
     def test_clickable_label_style_preservation(self):
@@ -106,9 +118,12 @@ class TestClickableLabel(unittest.TestCase):
         
         self.label.setContent(prefix, value, "")
         
-        # Check that style sheet is applied for non-link
-        self.assertIn("color: #cccccc", self.label.styleSheet())
-        self.assertIn("text-decoration: none", self.label.styleSheet())
+        # Check that HTML formatting is applied for non-link
+        expected_html = (
+            f"<span style='color:#999999;'>{prefix}</span>"
+            f"<span style='color:#e0e0e0;'>{value}</span>"
+        )
+        self.assertEqual(self.label.text(), expected_html)
     
     def test_multiple_content_updates(self):
         """Test that label can be updated multiple times correctly."""

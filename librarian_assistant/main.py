@@ -39,8 +39,8 @@ class ClickableLabel(QLabel):
         self.setOpenExternalLinks(False) # Important: emit linkActivated instead of QLabel opening it
         self.setCursor(Qt.ArrowCursor) # Default cursor
         # Default style for the non-link part (taken from main stylesheet)
-        self._default_text_color = "#cccccc" # Matches QWidget color in stylesheet
-        self._link_text_color = "#6cb6ff"    # A common link blue
+        self._default_text_color = "#e0e0e0" # Matches QWidget color in stylesheet
+        self._link_text_color = "#9f7aea"    # Purple accent color to match theme
 
     def setContent(self, prefix: str, value_part: str, url_for_value_part: str = ""):
         """
@@ -51,6 +51,9 @@ class ClickableLabel(QLabel):
         """
         self._url_for_link_part = url_for_value_part
         current_value_part = value_part if value_part is not None else "N/A"
+        
+        # Use a dimmer color for the prefix to make values stand out
+        prefix_color = "#999999"  # Medium gray for labels
 
         is_value_linkable = bool(self._url_for_link_part) and current_value_part != "N/A"
 
@@ -60,18 +63,21 @@ class ClickableLabel(QLabel):
             # but for simple text like "Slug: " and typical slugs/IDs, it's often fine.
             # For robustness, one might use Qt.escape().
             html_text = (
-                f"<span style='color:{self._default_text_color};'>{prefix}</span>"
+                f"<span style='color:{prefix_color};'>{prefix}</span>"
                 f"<a href='{self._url_for_link_part}' style='color:{self._link_text_color}; text-decoration:underline;'>{current_value_part}</a>"
             )
             self.setText(html_text)
             self.setCursor(Qt.PointingHandCursor)
             self.setToolTip(f"Open: {self._url_for_link_part}")
         else:
-            plain_text = f"{prefix}{current_value_part}"
-            self.setText(plain_text) # This will display with default QLabel styling (inherited)
+            # Use HTML for consistent styling even for non-links
+            html_text = (
+                f"<span style='color:{prefix_color};'>{prefix}</span>"
+                f"<span style='color:{self._default_text_color};'>{current_value_part}</span>"
+            )
+            self.setText(html_text)
             self.setCursor(Qt.ArrowCursor)
             self.setToolTip("")
-            self.setStyleSheet(f"color: {self._default_text_color}; text-decoration: none;") # Ensure non-link style
 class MainWindow(QMainWindow):
     """
     Main application window for Librarian-Assistant.
@@ -99,10 +105,14 @@ class MainWindow(QMainWindow):
         # The layout is applied to this content widget.
         main_view_layout = QVBoxLayout(self.main_view_content_widget)
 
-        self.api_input_area = QGroupBox("API & Book ID Input Area")
+        self.api_input_area = QGroupBox("▼ API & Book ID Input Area")
         self.api_input_area.setObjectName("apiInputArea")
+        self.api_input_area.setCheckable(True)
+        self.api_input_area.setChecked(True)  # Start expanded
         api_layout = QVBoxLayout(self.api_input_area)
-        self.token_display_label = QLabel("Token: Not Set")
+        self.token_display_label = QLabel()
+        self.token_display_label.setTextFormat(Qt.RichText)
+        self.token_display_label.setText(self._format_label_text("Token: ", "Not Set"))
         self.token_display_label.setObjectName("tokenDisplayLabel")
         api_layout.addWidget(self.token_display_label)
 
@@ -112,7 +122,9 @@ class MainWindow(QMainWindow):
         api_layout.addWidget(self.set_token_button)
 
         # Add Book ID input elements as per Prompt 3.1
-        self.book_id_label = QLabel("Book ID:")
+        self.book_id_label = QLabel()
+        self.book_id_label.setTextFormat(Qt.RichText)
+        self.book_id_label.setText("<span style='color:#999999;'>Book ID:</span>")
         self.book_id_label.setObjectName("bookIdLabel")
         api_layout.addWidget(self.book_id_label)
 
@@ -132,12 +144,16 @@ class MainWindow(QMainWindow):
 
         main_view_layout.addWidget(self.api_input_area)
 
-        self.book_info_area = QGroupBox("General Book Information Area")
+        self.book_info_area = QGroupBox("▼ General Book Information Area")
         self.book_info_area.setObjectName("bookInfoArea")
+        self.book_info_area.setCheckable(True)
+        self.book_info_area.setChecked(True)  # Start expanded
         self.info_layout = QVBoxLayout(self.book_info_area) # Store layout for easy access
 
         # Add specific widgets for book information - these will be populated later
-        self.book_title_label = QLabel("Title: Not Fetched")
+        self.book_title_label = QLabel()
+        self.book_title_label.setTextFormat(Qt.RichText)
+        self.book_title_label.setText(self._format_label_text("Title: ", "Not Fetched"))
         self.book_title_label.setObjectName("bookTitleLabel")
         self.info_layout.addWidget(self.book_title_label)
 
@@ -147,19 +163,27 @@ class MainWindow(QMainWindow):
         self.info_layout.addWidget(self.book_slug_label)
         self.book_slug_label.linkActivated.connect(self._open_web_link)
 
-        self.book_authors_label = QLabel("Authors: Not Fetched")
+        self.book_authors_label = QLabel()
+        self.book_authors_label.setTextFormat(Qt.RichText)
+        self.book_authors_label.setText(self._format_label_text("Authors: ", "Not Fetched"))
         self.book_authors_label.setObjectName("bookAuthorsLabel")
         self.info_layout.addWidget(self.book_authors_label)
 
-        self.book_id_queried_label = QLabel("Book ID (Queried): Not Fetched")
+        self.book_id_queried_label = QLabel()
+        self.book_id_queried_label.setTextFormat(Qt.RichText)
+        self.book_id_queried_label.setText(self._format_label_text("Book ID (Queried): ", "Not Fetched"))
         self.book_id_queried_label.setObjectName("bookIdQueriedLabel")
         self.info_layout.addWidget(self.book_id_queried_label)
 
-        self.book_total_editions_label = QLabel("Total Editions: Not Fetched")
+        self.book_total_editions_label = QLabel()
+        self.book_total_editions_label.setTextFormat(Qt.RichText)
+        self.book_total_editions_label.setText(self._format_label_text("Total Editions: ", "Not Fetched"))
         self.book_total_editions_label.setObjectName("bookTotalEditionsLabel")
         self.info_layout.addWidget(self.book_total_editions_label)
 
-        self.book_description_label = QLabel("Description: Not Fetched")
+        self.book_description_label = QLabel()
+        self.book_description_label.setTextFormat(Qt.RichText)
+        self.book_description_label.setText(self._format_label_text("Description: ", "Not Fetched"))
         self.book_description_label.setObjectName("bookDescriptionLabel")
         self.book_description_label.setWordWrap(True) # Allow text to wrap
         # Tooltip will be set dynamically if text is truncated
@@ -195,7 +219,9 @@ class MainWindow(QMainWindow):
         self.default_physical_label.linkActivated.connect(self._open_web_link)
         self.info_layout.addWidget(self.default_editions_group_box)
 
-        self.book_cover_label = QLabel("Cover URL: Not Fetched")
+        self.book_cover_label = QLabel()
+        self.book_cover_label.setTextFormat(Qt.RichText)
+        self.book_cover_label.setText(self._format_label_text("Cover URL: ", "Not Fetched"))
         self.book_cover_label.setObjectName("bookCoverLabel")
         self.info_layout.addWidget(self.book_cover_label)
 
@@ -231,6 +257,10 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage("Ready")
 
         self._update_token_display()
+        
+        # Connect toggled signals for collapsible behavior
+        self.api_input_area.toggled.connect(self._on_api_input_toggled)
+        self.book_info_area.toggled.connect(self._on_book_info_toggled)
 
 
     def _open_set_token_dialog(self):
@@ -257,9 +287,9 @@ class MainWindow(QMainWindow):
         """
         current_token = self.config_manager.load_token()
         if current_token: # Checks if token is not None and not an empty string
-            self.token_display_label.setText("Token: *******")
+            self.token_display_label.setText(self._format_label_text("Token: ", "*******"))
         else:
-            self.token_display_label.setText("Token: Not Set")
+            self.token_display_label.setText(self._format_label_text("Token: ", "Not Set"))
 
     def _on_book_id_text_changed(self, text: str):
         """
@@ -322,7 +352,9 @@ class MainWindow(QMainWindow):
 
                 # Re-create and populate the General Book Information Area widgets
                 # Title
-                self.book_title_label = QLabel(f"Title: {book_data.get('title', 'N/A')}")
+                self.book_title_label = QLabel()
+                self.book_title_label.setTextFormat(Qt.RichText)
+                self.book_title_label.setText(self._format_label_text("Title: ", book_data.get('title', 'N/A')))
                 self.book_title_label.setObjectName("bookTitleLabel")
                 self.info_layout.addWidget(self.book_title_label)
 
@@ -336,7 +368,9 @@ class MainWindow(QMainWindow):
                 self.info_layout.addWidget(self.book_slug_label)
 
                 # Book ID
-                self.book_id_queried_label = QLabel(f"Book ID (Queried): {book_id_int}")
+                self.book_id_queried_label = QLabel()
+                self.book_id_queried_label.setTextFormat(Qt.RichText)
+                self.book_id_queried_label.setText(self._format_label_text("Book ID (Queried): ", str(book_id_int)))
                 self.book_id_queried_label.setObjectName("bookIdQueriedLabel")
                 self.info_layout.addWidget(self.book_id_queried_label)
 
@@ -356,14 +390,18 @@ class MainWindow(QMainWindow):
                 if authors_list:
                     authors_display_text = ", ".join(authors_list)
 
-                self.book_authors_label = QLabel(f"Authors: {authors_display_text}") # Changed "Author:" to "Authors:"
+                self.book_authors_label = QLabel()
+                self.book_authors_label.setTextFormat(Qt.RichText)
+                self.book_authors_label.setText(self._format_label_text("Authors: ", authors_display_text))
                 self.book_authors_label.setObjectName("bookAuthorsLabel") # Keep object name for consistency/testing
                 self.info_layout.addWidget(self.book_authors_label)
                 
                 # Total Editions Count
                 editions_count_raw = book_data.get('editions_count')
-                editions_count_val = editions_count_raw if editions_count_raw is not None else 'N/A'
-                self.book_total_editions_label = QLabel(f"Total Editions: {editions_count_val}")
+                editions_count_val = str(editions_count_raw) if editions_count_raw is not None else 'N/A'
+                self.book_total_editions_label = QLabel()
+                self.book_total_editions_label.setTextFormat(Qt.RichText)
+                self.book_total_editions_label.setText(self._format_label_text("Total Editions: ", editions_count_val))
                 self.book_total_editions_label.setObjectName("bookTotalEditionsLabel")
                 self.info_layout.addWidget(self.book_total_editions_label)
 
@@ -380,7 +418,9 @@ class MainWindow(QMainWindow):
                     display_desc_text = full_description
                     tooltip_desc_text = "" # No tooltip needed if not truncated, or set full_description
                 
-                self.book_description_label = QLabel(f"Description: {display_desc_text}")
+                self.book_description_label = QLabel()
+                self.book_description_label.setTextFormat(Qt.RichText)
+                self.book_description_label.setText(self._format_label_text("Description: ", display_desc_text))
                 self.book_description_label.setObjectName("bookDescriptionLabel")
                 self.book_description_label.setWordWrap(True)
                 if tooltip_desc_text: # Only set tooltip if it was truncated
@@ -441,7 +481,9 @@ class MainWindow(QMainWindow):
                     book_data['default_cover_edition']['image'].get('url'):
                         cover_url = book_data['default_cover_edition']['image']['url']
 
-                self.book_cover_label = QLabel(f"Cover URL: {cover_url}")
+                self.book_cover_label = QLabel()
+                self.book_cover_label.setTextFormat(Qt.RichText)
+                self.book_cover_label.setText(self._format_label_text("Cover URL: ", cover_url))
                 self.book_cover_label.setObjectName("bookCoverLabel") # Keep object name
                 self.info_layout.addWidget(self.book_cover_label)
 
@@ -462,15 +504,37 @@ class MainWindow(QMainWindow):
                 # Populate the Editions Table
                 editions = book_data.get('editions', [])
                 if editions:
-                    # Define headers according to spec.md section 2.4.1 (static columns only for now)
-                    headers = [
+                    # Process contributor data to determine which columns to show
+                    contributor_data = self._process_contributor_data(editions)
+                    active_roles = contributor_data['active_roles']
+                    contributors_by_edition = contributor_data['contributors_by_edition']
+                    max_contributors_per_role = contributor_data['max_contributors_per_role']
+                    
+                    # Define static headers according to spec.md section 2.4.1
+                    static_headers = [
                         "id", "score", "title", "subtitle", "Cover Image?", 
                         "isbn_10", "isbn_13", "asin", "Reading Format", "pages", 
                         "Duration", "edition_format", "edition_information", 
                         "release_date", "Publisher", "Language", "Country"
                     ]
-                    self.editions_table_widget.setColumnCount(len(headers))
-                    self.editions_table_widget.setHorizontalHeaderLabels(headers)
+                    
+                    # Build dynamic contributor headers (only for actual number needed)
+                    contributor_headers = []
+                    contributor_role_map = {}  # Maps column index to (role, number)
+                    
+                    for role in active_roles:
+                        max_for_role = max_contributors_per_role.get(role, 0)
+                        for i in range(1, max_for_role + 1):  # Only create columns for actual contributors
+                            header = f"{role} {i}"
+                            col_index = len(static_headers) + len(contributor_headers)
+                            contributor_role_map[col_index] = (role, i - 1)  # 0-based index
+                            contributor_headers.append(header)
+                    
+                    # Combine all headers
+                    all_headers = static_headers + contributor_headers
+                    
+                    self.editions_table_widget.setColumnCount(len(all_headers))
+                    self.editions_table_widget.setHorizontalHeaderLabels(all_headers)
                     self.editions_table_widget.setRowCount(len(editions))
 
                     for row, edition_data in enumerate(editions):
@@ -582,12 +646,29 @@ class MainWindow(QMainWindow):
                         # Country
                         country_name = edition_data.get('country', {}).get('name', 'N/A') if edition_data.get('country') else 'N/A'
                         self.editions_table_widget.setItem(row, col, QTableWidgetItem(country_name))
+                        col += 1
+                        
+                        # Populate contributor columns
+                        edition_id = edition_data.get('id')
+                        edition_contributors = contributors_by_edition.get(edition_id, {})
+                        
+                        # For each contributor column
+                        for col_idx in range(len(static_headers), len(all_headers)):
+                            if col_idx in contributor_role_map:
+                                role, contributor_index = contributor_role_map[col_idx]
+                                contributors_for_role = edition_contributors.get(role, [])
+                                
+                                if contributor_index < len(contributors_for_role):
+                                    contributor_name = contributors_for_role[contributor_index]
+                                    self.editions_table_widget.setItem(row, col_idx, QTableWidgetItem(contributor_name))
+                                else:
+                                    self.editions_table_widget.setItem(row, col_idx, QTableWidgetItem("N/A"))
                     
                     # Enable sorting
                     self.editions_table_widget.setSortingEnabled(True)
                     
                     # Default sort by score column (descending)
-                    score_column = headers.index("score")
+                    score_column = all_headers.index("score")
                     self.editions_table_widget.sortItems(score_column, Qt.DescendingOrder)
                     
                     # Enable scrolling (should be enabled by default, but let's be explicit)
@@ -620,6 +701,139 @@ class MainWindow(QMainWindow):
         else:
             logger.warning("Attempted to open an empty URL.")
     
+    def _on_api_input_toggled(self, checked: bool):
+        """Handle the toggling of the API input area."""
+        # Update the arrow in the title
+        current_title = self.api_input_area.title()
+        if checked:
+            # Replace right arrow with down arrow
+            new_title = current_title.replace("▶", "▼")
+        else:
+            # Replace down arrow with right arrow
+            new_title = current_title.replace("▼", "▶")
+        self.api_input_area.setTitle(new_title)
+        
+        # Find all widgets inside the group box except the title
+        for i in range(self.api_input_area.layout().count()):
+            widget = self.api_input_area.layout().itemAt(i).widget()
+            if widget:
+                widget.setVisible(checked)
+        
+        # Adjust the group box size and add visual property
+        if not checked:
+            self.api_input_area.setMaximumHeight(30)  # Just enough for the title
+            self.api_input_area.setProperty("collapsed", "true")
+        else:
+            self.api_input_area.setMaximumHeight(16777215)  # Reset to default max
+            self.api_input_area.setProperty("collapsed", "false")
+        
+        # Force style update
+        self.api_input_area.style().unpolish(self.api_input_area)
+        self.api_input_area.style().polish(self.api_input_area)
+    
+    def _on_book_info_toggled(self, checked: bool):
+        """Handle the toggling of the book info area."""
+        # Update the arrow in the title
+        current_title = self.book_info_area.title()
+        if checked:
+            # Replace right arrow with down arrow
+            new_title = current_title.replace("▶", "▼")
+        else:
+            # Replace down arrow with right arrow
+            new_title = current_title.replace("▼", "▶")
+        self.book_info_area.setTitle(new_title)
+        
+        # Find all widgets inside the group box except the title
+        for i in range(self.book_info_area.layout().count()):
+            widget = self.book_info_area.layout().itemAt(i).widget()
+            if widget:
+                widget.setVisible(checked)
+        
+        # Adjust the group box size and add visual property
+        if not checked:
+            self.book_info_area.setMaximumHeight(30)  # Just enough for the title
+            self.book_info_area.setProperty("collapsed", "true")
+        else:
+            self.book_info_area.setMaximumHeight(16777215)  # Reset to default max
+            self.book_info_area.setProperty("collapsed", "false")
+        
+        # Force style update
+        self.book_info_area.style().unpolish(self.book_info_area)
+        self.book_info_area.style().polish(self.book_info_area)
+    
+    def _process_contributor_data(self, editions: list) -> dict:
+        """
+        Process contributor data from all editions to determine roles and contributors.
+        
+        Returns:
+            dict: Structure with roles as keys and lists of contributor names per edition
+        """
+        # Predefined roles from spec Appendix B
+        predefined_roles = [
+            "Author", "Illustrator", "Editor", "Translator", 
+            "Narrator", "Foreword", "Cover Artist", "Other"
+        ]
+        
+        # Dictionary to track all unique roles found across all editions
+        all_roles = set()
+        
+        # Dictionary to store contributors by edition and role
+        contributors_by_edition = {}
+        
+        # Track maximum contributors per role
+        max_contributors_per_role = {}
+        
+        for edition in editions:
+            edition_id = edition.get('id')
+            contributors_by_edition[edition_id] = {}
+            
+            cached_contributors = edition.get('cached_contributors', [])
+            
+            # Process each contributor
+            for contributor in cached_contributors:
+                if not isinstance(contributor, dict):
+                    continue
+                    
+                author_info = contributor.get('author', {})
+                if not isinstance(author_info, dict):
+                    continue
+                    
+                name = author_info.get('name', 'N/A')
+                contribution = contributor.get('contribution')
+                
+                # Handle null contribution as primary Author
+                if contribution is None:
+                    role = "Author"
+                else:
+                    role = contribution
+                    
+                # Add role to all_roles set
+                all_roles.add(role)
+                
+                # Initialize role list if needed
+                if role not in contributors_by_edition[edition_id]:
+                    contributors_by_edition[edition_id][role] = []
+                
+                contributors_by_edition[edition_id][role].append(name)
+        
+        # Calculate max contributors per role
+        for edition_id, roles_dict in contributors_by_edition.items():
+            for role, contributors in roles_dict.items():
+                current_count = len(contributors)
+                if role not in max_contributors_per_role:
+                    max_contributors_per_role[role] = current_count
+                else:
+                    max_contributors_per_role[role] = max(max_contributors_per_role[role], current_count)
+        
+        # Filter to only include predefined roles that actually exist
+        active_roles = [role for role in predefined_roles if role in all_roles]
+        
+        return {
+            'active_roles': active_roles,
+            'contributors_by_edition': contributors_by_edition,
+            'max_contributors_per_role': max_contributors_per_role
+        }
+    
     def _create_table_item_with_tooltip(self, text: str, max_length: int = None) -> QTableWidgetItem:
         """
         Creates a QTableWidgetItem with text truncation and tooltip for long content.
@@ -645,6 +859,10 @@ class MainWindow(QMainWindow):
         
         return item
 
+    def _format_label_text(self, label: str, value: str) -> str:
+        """Format label text with dimmed label and prominent value."""
+        return f"<span style='color:#999999;'>{label}</span><span style='color:#e0e0e0;'>{value}</span>"
+    
     def _clear_layout(self, layout: QVBoxLayout | None):
         """
         Removes all widgets from the given layout.
@@ -668,69 +886,153 @@ def main():
 
     app.setStyleSheet("""
         QWidget {
-            background-color: #3c3c3c; 
-            color: #cccccc; 
+            background-color: #1a1a1a; 
+            color: #e0e0e0; 
             font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
-            font-size: 12pt; /* <<< Added to increase default font size */
+            font-size: 12pt;
         }
         QMainWindow {
-            background-color: #2b2b2b;
+            background-color: #0d0d0d;
         }
         QTabWidget::pane {
-            border-top: 2px solid #555555;
+            border-top: 2px solid #2d2d2d;
+            background-color: #1a1a1a;
         }
         QTabBar::tab {
-            background: #4a4a4a;
-            color: #cccccc;
-            padding: 8px; /* May need adjustment if font becomes much larger */
-            border: 1px solid #555555;
-            border-bottom-color: #555555; 
+            background: #242424;
+            color: #b0b0b0;
+            padding: 8px 16px;
+            border: 1px solid #2d2d2d;
+            border-bottom-color: #2d2d2d; 
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
         }
         QTabBar::tab:selected {
-            background: #3c3c3c; 
+            background: #1a1a1a; 
             color: #ffffff;
             margin-bottom: -1px; 
-            border-bottom-color: #3c3c3c;
+            border-bottom-color: #1a1a1a;
         }
         QTabBar::tab:hover {
-            background: #5a5a5a;
+            background: #2d2d2d;
+            color: #ffffff;
         }
         QGroupBox {
-            font-weight: bold; /* This will remain bold */
-            border: 1px solid #555555;
-            border-radius: 4px;
-            margin-top: 20px; /* Increased to accommodate larger font title */
+            font-weight: bold;
+            border: 1px solid #2d2d2d;
+            border-radius: 6px;
+            margin-top: 20px;
+            background-color: #1a1a1a;
+        }
+        QGroupBox:checkable {
+            subcontrol-origin: margin;
+            subcontrol-position: left top;
+            padding-left: 0px;
+            margin-left: 0px;
+        }
+        QGroupBox::indicator {
+            width: 0px;
+            height: 0px;
+            margin: 0px;
+            padding: 0px;
+        }
+        QGroupBox[collapsed="true"] {
+            border-bottom: none;
+            padding-bottom: 0px;
         }
         QGroupBox::title {
             subcontrol-origin: margin;
             subcontrol-position: top left; 
-            padding: 0 3px; /* May need minor adjustment if font is very large */
-            left: 10px; 
+            padding: 0 8px;
+            left: 10px;
+            color: #ffffff;
         }
         QStatusBar {
-            color: #cccccc;
+            background-color: #0d0d0d;
+            color: #b0b0b0;
+            border-top: 1px solid #2d2d2d;
         }
         QLabel {
-            color: #cccccc;
+            color: #e0e0e0;
         }
         QPushButton { 
-            background-color: #555555; 
-            color: #cccccc;
-            border: 1px solid #666666; 
-            padding: 4px 8px; /* May need adjustment */
-            min-height: 20px; 
+            background-color: #6b46c1; 
+            color: #ffffff;
+            border: none;
+            border-radius: 4px;
+            padding: 6px 16px;
+            min-height: 24px;
+            font-weight: 500;
         }
         QPushButton:hover { 
-            background-color: #6a6a6a; 
+            background-color: #7c52d9;
         }
         QPushButton:pressed { 
-            background-color: #454545; 
+            background-color: #553899;
         }
         QLineEdit { 
-            border: 1px solid #555555; 
-            background-color: #454545; 
-            color: #cccccc;
-            padding: 2px; 
+            border: 1px solid #2d2d2d;
+            border-radius: 4px;
+            background-color: #242424;
+            color: #e0e0e0;
+            padding: 6px 8px;
+            selection-background-color: #6b46c1;
+        }
+        QLineEdit:focus {
+            border: 1px solid #6b46c1;
+        }
+        QTableWidget {
+            background-color: #1a1a1a;
+            alternate-background-color: #242424;
+            gridline-color: #2d2d2d;
+            color: #e0e0e0;
+            selection-background-color: #6b46c1;
+            selection-color: #ffffff;
+        }
+        QTableWidget::item {
+            padding: 4px;
+        }
+        QHeaderView::section {
+            background-color: #242424;
+            color: #ffffff;
+            padding: 6px;
+            border: none;
+            border-right: 1px solid #2d2d2d;
+            border-bottom: 1px solid #2d2d2d;
+            font-weight: 600;
+        }
+        QHeaderView::section:hover {
+            background-color: #2d2d2d;
+        }
+        QScrollBar:vertical {
+            background-color: #1a1a1a;
+            width: 12px;
+            border: none;
+        }
+        QScrollBar::handle:vertical {
+            background-color: #3d3d3d;
+            min-height: 30px;
+            border-radius: 6px;
+        }
+        QScrollBar::handle:vertical:hover {
+            background-color: #4d4d4d;
+        }
+        QScrollBar:horizontal {
+            background-color: #1a1a1a;
+            height: 12px;
+            border: none;
+        }
+        QScrollBar::handle:horizontal {
+            background-color: #3d3d3d;
+            min-width: 30px;
+            border-radius: 6px;
+        }
+        QScrollBar::handle:horizontal:hover {
+            background-color: #4d4d4d;
+        }
+        QScrollBar::add-line, QScrollBar::sub-line {
+            border: none;
+            background: none;
         }
     """)
     
