@@ -416,53 +416,55 @@ Phase 5: Editions Table - Advanced Interactivity
 
 Phase 6: Editions Table - Filtering
 
-    [ ] Filter Panel UI
+    [X] Filter Panel UI
 
-        [ ] Design and implement a toggleable "Advanced Filter Panel" (e.g., a QDockWidget or a separate dialog).
+        [X] Design and implement a toggleable "Advanced Filter Panel" (implemented as modal dialog).
 
-        [ ] Allow adding multiple filter rules. Each rule UI:
+        [X] Allow adding multiple filter rules. Each rule UI:
 
-            [ ] QComboBox for Column (populated dynamically with current table columns).
+            [X] QComboBox for Column (populated dynamically with current table columns).
 
-            [ ] QComboBox for Operator (populated based on selected column's data type).
+            [X] QComboBox for Operator (populated based on selected column's data type).
 
-            [ ] QLineEdit (or QDateEdit, etc.) for Value.
+            [X] QLineEdit (or QDateEdit, QComboBox) for Value based on operator.
 
-        [ ] Buttons: "Add Rule", "Remove Rule", "Clear All Filters", "Apply Filters".
+        [X] Buttons: "Add Rule", "Remove Rule", "Clear All Filters", "Apply Filters".
 
-        [ ] QComboBox or Radio Buttons for "Match: AND / OR".
+        [X] Radio Buttons for "Match: AND / OR".
 
-    [ ] Operator Implementation & Filter Logic
+    [X] Operator Implementation & Filter Logic
 
-        [ ] Implement filter logic for Text Columns: Contains, Does not contain, Equals, Does not equal, Starts with, Ends with, Is empty, Is not empty.
+        [X] Implement filter logic for Text Columns: Contains, Does not contain, Equals, Does not equal, Starts with, Ends with, Is empty, Is not empty.
 
-        [ ] Implement filter logic for Numerical Columns: =, ≠, >, >=, <, <=, Is N/A, Is not N/A.
+        [X] Implement filter logic for Numerical Columns: =, ≠, >, >=, <, <=, Is N/A, Is not N/A.
 
-        [ ] Implement filter logic for Date Columns (release_date): Is on, Is before, Is after, Is between (two date inputs), Is N/A, Is not N/A.
+        [X] Implement filter logic for Date Columns (release_date): Is on, Is before, Is after, Is between (two date inputs), Is N/A, Is not N/A.
 
-        [ ] Implement filter logic for "Cover Image?": Is "Yes", Is "No".
+        [X] Implement filter logic for "Cover Image?": Is "Yes", Is "No".
 
-        [ ] Implement filter logic for "Reading Format": Is ("Physical Book", "Audiobook", "E-Book"), Is not.
+        [X] Implement filter logic for "Reading Format": Is ("Physical Book", "Audiobook", "E-Book"), Is not.
 
-        [ ] Apply combined filter rules (AND/OR) to the editions table (hide/show rows).
+        [X] Apply combined filter rules (AND/OR) to the editions table (hide/show rows).
 
-    [ ] Filter Management & Status
+    [X] Filter Management & Status
 
-        [ ] Implement functionality for "Remove Rule" and "Clear All Filters".
+        [X] Implement functionality for "Remove Rule" and "Clear All Filters".
 
-        [ ] Update status bar with filter status (e.g., "Filter applied: X editions shown").
+        [X] Update status bar with filter status (e.g., "Filter applied: X editions shown").
 
-    [ ] Unit/Integration Tests for Filtering
+        [X] Clear filters when new book data is loaded.
 
-        [ ] Test filter panel UI creation and dynamic population of column/operator dropdowns.
+    [X] Unit/Integration Tests for Filtering
 
-        [ ] Test individual filter operator logic for each data type.
+        [X] Test filter panel UI creation and dynamic population of column/operator dropdowns.
 
-        [ ] Test combining filter rules with AND/OR logic.
+        [X] Test individual filter operator logic for each data type.
 
-        [ ] Test filter application to table (mock table data and verify row visibility).
+        [X] Test combining filter rules with AND/OR logic.
 
-        [ ] Test filter management (remove, clear).
+        [X] Test filter application to table (test row matching logic).
+
+        [X] Test filter management (remove, clear).
 
 Phase 7: Search History
 

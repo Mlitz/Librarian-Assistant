@@ -19,6 +19,8 @@ from librarian_assistant.exceptions import ApiException, ApiNotFoundError
 from librarian_assistant.image_downloader import ImageDownloader
 # Import ColumnConfigDialog for column configuration
 from librarian_assistant.column_config_dialog import ColumnConfigDialog
+# Import FilterDialog for advanced filtering
+from librarian_assistant.filter_dialog import FilterDialog
 
 import webbrowser # For Prompt 4.3
 import logging
@@ -378,6 +380,10 @@ class MainWindow(QMainWindow):
         
         # Edition data storage for accordion
         self.editions_data = []  # Store full edition data for each row
+        
+        # Filter tracking
+        self.active_filters = []  # Currently applied filters
+        self.filter_logic_mode = 'AND'  # AND or OR
 
         self.config_manager = ConfigManager()
         self.api_client = ApiClient(
@@ -526,7 +532,13 @@ class MainWindow(QMainWindow):
         self.configure_columns_button.setObjectName("configureColumnsButton")
         self.configure_columns_button.clicked.connect(self._on_configure_columns)
         table_controls_layout.addWidget(self.configure_columns_button)
-        table_controls_layout.addStretch()  # Push button to the left
+        
+        self.filter_button = QPushButton("Advanced Filter")
+        self.filter_button.setObjectName("filterButton")
+        self.filter_button.clicked.connect(self._on_filter)
+        table_controls_layout.addWidget(self.filter_button)
+        
+        table_controls_layout.addStretch()  # Push buttons to the left
         self.editions_layout.addLayout(table_controls_layout)
         
         self.editions_table_widget = EditionsTableWidget(self)
@@ -645,6 +657,7 @@ class MainWindow(QMainWindow):
                 self.editions_table_widget.setRowCount(0)  # Clear existing rows
                 self.editions_table_widget.setColumnCount(0)  # Clear existing columns
                 self.editions_data = []  # Clear edition data
+                self._clear_filters()  # Clear any active filters
                 self.status_bar.showMessage(f"Book data fetched successfully for ID {book_id_str}.")
                 logger.info(f"Successfully fetched data for Book ID {book_id_int}: {book_data.get('title', 'N/A')}")
                 logger.info(f"Complete book_data received by main.py for Book ID {book_id_int}: {book_data}")
@@ -1287,6 +1300,217 @@ class MainWindow(QMainWindow):
             self.status_bar.showMessage(f"Column configuration applied. {hidden_count} columns hidden.", 3000)
         else:
             self.status_bar.showMessage("Column configuration applied.", 3000)
+    
+    def _on_filter(self):
+        """Show the filter dialog and apply filters."""
+        # Only allow filtering if we have data
+        if not self.all_column_names:
+            self.status_bar.showMessage("No data loaded. Fetch book data first.", 3000)
+            return
+        
+        # Create dialog with visible columns
+        dialog = FilterDialog(self.visible_column_names, self)
+        
+        # Connect to filter signal
+        dialog.filters_applied.connect(self._apply_filters)
+        
+        # Show dialog
+        dialog.exec_()
+    
+    def _apply_filters(self, filters, logic_mode):
+        """
+        Apply filters to the table.
+        
+        Args:
+            filters: List of filter dictionaries
+            logic_mode: 'AND' or 'OR'
+        """
+        # Store active filters
+        self.active_filters = filters
+        self.filter_logic_mode = logic_mode
+        
+        # Apply filters to table
+        hidden_count = 0
+        total_rows = self.editions_table_widget.rowCount()
+        
+        for row in range(total_rows):
+            # Skip accordion rows
+            if row in self.editions_table_widget.expanded_rows.values():
+                continue
+                
+            # Check if row matches filters
+            row_visible = self._row_matches_filters(row, filters, logic_mode)
+            
+            # Show/hide row
+            self.editions_table_widget.setRowHidden(row, not row_visible)
+            
+            if not row_visible:
+                hidden_count += 1
+        
+        # Update status
+        visible_count = total_rows - hidden_count - len(self.editions_table_widget.expanded_rows)
+        if hidden_count > 0:
+            self.status_bar.showMessage(
+                f"Filter applied: {visible_count} editions shown, {hidden_count} hidden.", 
+                5000
+            )
+        else:
+            self.status_bar.showMessage("Filter applied: All editions match.", 3000)
+    
+    def _row_matches_filters(self, row, filters, logic_mode):
+        """
+        Check if a row matches the given filters.
+        
+        Args:
+            row: Row index
+            filters: List of filter dictionaries
+            logic_mode: 'AND' or 'OR'
+            
+        Returns:
+            bool: True if row matches filters
+        """
+        if not filters:
+            return True
+        
+        results = []
+        
+        for filter_data in filters:
+            column_name = filter_data['column']
+            operator = filter_data['operator']
+            filter_value = filter_data['value']
+            
+            # Find column index
+            col_index = None
+            for col in range(self.editions_table_widget.columnCount()):
+                header = self.editions_table_widget.horizontalHeaderItem(col)
+                if header and header.text().replace(" ▲", "").replace(" ▼", "") == column_name:
+                    col_index = col
+                    break
+            
+            if col_index is None:
+                continue
+            
+            # Get cell value
+            item = self.editions_table_widget.item(row, col_index)
+            cell_value = item.text() if item else ""
+            
+            # Apply operator
+            match = self._apply_filter_operator(cell_value, operator, filter_value, column_name)
+            results.append(match)
+        
+        # Combine results based on logic mode
+        if logic_mode == 'AND':
+            return all(results) if results else True
+        else:  # OR
+            return any(results) if results else False
+    
+    def _apply_filter_operator(self, cell_value, operator, filter_value, column_name):
+        """
+        Apply a filter operator to a cell value.
+        
+        Args:
+            cell_value: The value in the cell
+            operator: The filter operator
+            filter_value: The filter value to compare against
+            column_name: The column name for type-specific handling
+            
+        Returns:
+            bool: True if the filter matches
+        """
+        # Handle N/A values
+        if cell_value == "N/A":
+            return operator in ['Is N/A', 'Is empty', 'Is not empty']
+        
+        # Text operators
+        if operator == 'Contains':
+            return filter_value.lower() in cell_value.lower()
+        elif operator == 'Does not contain':
+            return filter_value.lower() not in cell_value.lower()
+        elif operator == 'Equals':
+            return cell_value.lower() == filter_value.lower()
+        elif operator == 'Does not equal':
+            return cell_value.lower() != filter_value.lower()
+        elif operator == 'Starts with':
+            return cell_value.lower().startswith(filter_value.lower())
+        elif operator == 'Ends with':
+            return cell_value.lower().endswith(filter_value.lower())
+        elif operator == 'Is empty':
+            return cell_value == "" or cell_value == "N/A"
+        elif operator == 'Is not empty':
+            return cell_value != "" and cell_value != "N/A"
+        
+        # Numeric operators
+        elif operator in ['=', '≠', '>', '>=', '<', '<=']:
+            try:
+                cell_num = float(cell_value)
+                filter_num = float(filter_value)
+                
+                if operator == '=':
+                    return cell_num == filter_num
+                elif operator == '≠':
+                    return cell_num != filter_num
+                elif operator == '>':
+                    return cell_num > filter_num
+                elif operator == '>=':
+                    return cell_num >= filter_num
+                elif operator == '<':
+                    return cell_num < filter_num
+                elif operator == '<=':
+                    return cell_num <= filter_num
+            except ValueError:
+                return False
+        
+        # Date operators
+        elif operator in ['Is on', 'Is before', 'Is after', 'Is between']:
+            try:
+                # Convert MM/DD/YYYY to comparable format
+                from datetime import datetime
+                cell_date = datetime.strptime(cell_value, '%m/%d/%Y')
+                
+                if operator == 'Is between' and isinstance(filter_value, dict):
+                    start_date = datetime.strptime(filter_value['start'], '%Y-%m-%d')
+                    end_date = datetime.strptime(filter_value['end'], '%Y-%m-%d')
+                    return start_date <= cell_date <= end_date
+                else:
+                    filter_date = datetime.strptime(filter_value, '%Y-%m-%d')
+                    
+                    if operator == 'Is on':
+                        return cell_date.date() == filter_date.date()
+                    elif operator == 'Is before':
+                        return cell_date < filter_date
+                    elif operator == 'Is after':
+                        return cell_date > filter_date
+            except ValueError:
+                return False
+        
+        # Special operators
+        elif operator == 'Is "Yes"':
+            return cell_value == "Yes"
+        elif operator == 'Is "No"':
+            return cell_value == "No"
+        elif operator == 'Is N/A':
+            return cell_value == "N/A"
+        elif operator == 'Is not N/A':
+            return cell_value != "N/A"
+        elif operator == 'Is':
+            return cell_value == filter_value
+        elif operator == 'Is not':
+            return cell_value != filter_value
+        
+        return False
+    
+    def _clear_filters(self):
+        """Clear all active filters."""
+        self.active_filters = []
+        self.filter_logic_mode = 'AND'
+        
+        # Show all rows
+        for row in range(self.editions_table_widget.rowCount()):
+            # Don't unhide accordion rows
+            if row not in self.editions_table_widget.expanded_rows.values():
+                self.editions_table_widget.setRowHidden(row, False)
+        
+        self.status_bar.showMessage("Filters cleared.", 3000)
 
 def main():
     """

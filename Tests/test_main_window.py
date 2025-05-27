@@ -1230,6 +1230,139 @@ class TestMainWindow(unittest.TestCase):
         
         # Test unsupported platform
         self.assertIsNone(table._get_platform_url('UnknownPlatform', '123'))
+    
+    def test_filter_button_exists(self):
+        """Test that Advanced Filter button exists."""
+        # Check button exists
+        self.assertIsNotNone(self.window.filter_button)
+        self.assertEqual(self.window.filter_button.text(), "Advanced Filter")
+        
+        # Check it's in the editions table area
+        self.assertEqual(self.window.filter_button.parent(), self.window.editions_table_area)
+    
+    @patch('librarian_assistant.main.FilterDialog')
+    def test_filter_no_data(self, mock_dialog_class):
+        """Test filter with no data loaded."""
+        # Click filter button
+        self.window.filter_button.click()
+        
+        # Should show status message
+        self.assertEqual(self.window.status_bar.currentMessage(), 
+                        "No data loaded. Fetch book data first.")
+        
+        # Dialog should not be created
+        mock_dialog_class.assert_not_called()
+    
+    def test_filter_operator_text(self):
+        """Test text filter operators."""
+        # Test Contains
+        self.assertTrue(self.window._apply_filter_operator("Harry Potter", "Contains", "Harry", "title"))
+        self.assertFalse(self.window._apply_filter_operator("Harry Potter", "Contains", "Ron", "title"))
+        
+        # Test Equals
+        self.assertTrue(self.window._apply_filter_operator("Test", "Equals", "test", "title"))
+        self.assertFalse(self.window._apply_filter_operator("Test", "Equals", "Testing", "title"))
+        
+        # Test Starts with
+        self.assertTrue(self.window._apply_filter_operator("Harry Potter", "Starts with", "Harry", "title"))
+        self.assertFalse(self.window._apply_filter_operator("Harry Potter", "Starts with", "Potter", "title"))
+        
+        # Test Is empty
+        self.assertTrue(self.window._apply_filter_operator("", "Is empty", None, "title"))
+        self.assertTrue(self.window._apply_filter_operator("N/A", "Is empty", None, "title"))
+        self.assertFalse(self.window._apply_filter_operator("Test", "Is empty", None, "title"))
+    
+    def test_filter_operator_numeric(self):
+        """Test numeric filter operators."""
+        # Test equals
+        self.assertTrue(self.window._apply_filter_operator("4.5", "=", "4.5", "score"))
+        self.assertFalse(self.window._apply_filter_operator("4.5", "=", "4.0", "score"))
+        
+        # Test greater than
+        self.assertTrue(self.window._apply_filter_operator("4.5", ">", "4.0", "score"))
+        self.assertFalse(self.window._apply_filter_operator("4.5", ">", "5.0", "score"))
+        
+        # Test less than or equal
+        self.assertTrue(self.window._apply_filter_operator("4.5", "<=", "4.5", "score"))
+        self.assertTrue(self.window._apply_filter_operator("4.5", "<=", "5.0", "score"))
+        self.assertFalse(self.window._apply_filter_operator("4.5", "<=", "4.0", "score"))
+    
+    def test_filter_operator_date(self):
+        """Test date filter operators."""
+        # Test Is on
+        self.assertTrue(self.window._apply_filter_operator("01/15/2023", "Is on", "2023-01-15", "release_date"))
+        self.assertFalse(self.window._apply_filter_operator("01/15/2023", "Is on", "2023-01-16", "release_date"))
+        
+        # Test Is before
+        self.assertTrue(self.window._apply_filter_operator("01/15/2023", "Is before", "2023-01-20", "release_date"))
+        self.assertFalse(self.window._apply_filter_operator("01/15/2023", "Is before", "2023-01-10", "release_date"))
+        
+        # Test Is between
+        filter_value = {'start': '2023-01-01', 'end': '2023-01-31'}
+        self.assertTrue(self.window._apply_filter_operator("01/15/2023", "Is between", filter_value, "release_date"))
+        
+        filter_value = {'start': '2023-02-01', 'end': '2023-02-28'}
+        self.assertFalse(self.window._apply_filter_operator("01/15/2023", "Is between", filter_value, "release_date"))
+    
+    def test_filter_operator_special(self):
+        """Test special filter operators."""
+        # Test Cover Image
+        self.assertTrue(self.window._apply_filter_operator("Yes", 'Is "Yes"', None, "Cover Image?"))
+        self.assertFalse(self.window._apply_filter_operator("No", 'Is "Yes"', None, "Cover Image?"))
+        
+        # Test Is N/A
+        self.assertTrue(self.window._apply_filter_operator("N/A", "Is N/A", None, "pages"))
+        self.assertFalse(self.window._apply_filter_operator("100", "Is N/A", None, "pages"))
+        
+        # Test Reading Format
+        self.assertTrue(self.window._apply_filter_operator("Audiobook", "Is", "Audiobook", "Reading Format"))
+        self.assertFalse(self.window._apply_filter_operator("Audiobook", "Is", "E-Book", "Reading Format"))
+    
+    def test_row_matches_filters_and_logic(self):
+        """Test row matching with AND logic."""
+        # Set up a simple table
+        self.window.editions_table_widget.setRowCount(1)
+        self.window.editions_table_widget.setColumnCount(2)
+        self.window.editions_table_widget.setHorizontalHeaderLabels(['title', 'score'])
+        self.window.editions_table_widget.setItem(0, 0, QTableWidgetItem("Harry Potter"))
+        self.window.editions_table_widget.setItem(0, 1, QTableWidgetItem("4.5"))
+        
+        # Test AND logic - both match
+        filters = [
+            {'column': 'title', 'operator': 'Contains', 'value': 'Harry'},
+            {'column': 'score', 'operator': '>', 'value': '4.0'}
+        ]
+        self.assertTrue(self.window._row_matches_filters(0, filters, 'AND'))
+        
+        # Test AND logic - one doesn't match
+        filters = [
+            {'column': 'title', 'operator': 'Contains', 'value': 'Harry'},
+            {'column': 'score', 'operator': '>', 'value': '5.0'}
+        ]
+        self.assertFalse(self.window._row_matches_filters(0, filters, 'AND'))
+    
+    def test_row_matches_filters_or_logic(self):
+        """Test row matching with OR logic."""
+        # Set up a simple table
+        self.window.editions_table_widget.setRowCount(1)
+        self.window.editions_table_widget.setColumnCount(2)
+        self.window.editions_table_widget.setHorizontalHeaderLabels(['title', 'score'])
+        self.window.editions_table_widget.setItem(0, 0, QTableWidgetItem("Harry Potter"))
+        self.window.editions_table_widget.setItem(0, 1, QTableWidgetItem("4.5"))
+        
+        # Test OR logic - one matches
+        filters = [
+            {'column': 'title', 'operator': 'Contains', 'value': 'Ron'},
+            {'column': 'score', 'operator': '>', 'value': '4.0'}
+        ]
+        self.assertTrue(self.window._row_matches_filters(0, filters, 'OR'))
+        
+        # Test OR logic - none match
+        filters = [
+            {'column': 'title', 'operator': 'Contains', 'value': 'Ron'},
+            {'column': 'score', 'operator': '>', 'value': '5.0'}
+        ]
+        self.assertFalse(self.window._row_matches_filters(0, filters, 'OR'))
 
     @patch('librarian_assistant.main.webbrowser.open')
     def test_open_web_link_called_with_url(self, mock_webbrowser_open):
