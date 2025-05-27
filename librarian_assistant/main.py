@@ -3,26 +3,26 @@
 import sys
 from datetime import datetime
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QTabWidget, QWidget, QLineEdit, QTableWidget, QTableWidgetItem, QScrollArea,
-                             QVBoxLayout, QHBoxLayout, QLabel, QGroupBox, QPushButton, QHeaderView, QFrame)
+                             QVBoxLayout, QHBoxLayout, QLabel, QGroupBox, QPushButton, QHeaderView, QFrame, QComboBox)
 from PyQt5.QtGui import QIntValidator, QValidator
 from PyQt5.QtCore import Qt, pyqtSignal
 
-# Import ConfigManager for Prompt 2.2
+# Import configuration and authentication modules
 from librarian_assistant.config_manager import ConfigManager
-# Import TokenDialog for Prompt 2.2
 from librarian_assistant.token_dialog import TokenDialog
-# Import ApiClient for Prompt 3.3
+# Import API client and exceptions
 from librarian_assistant.api_client import ApiClient
-# Import custom exceptions for Prompt 3.3
 from librarian_assistant.exceptions import ApiException, ApiNotFoundError
-# Import ImageDownloader for Prompt 4.1
+# Import image handling
 from librarian_assistant.image_downloader import ImageDownloader
 # Import ColumnConfigDialog for column configuration
 from librarian_assistant.column_config_dialog import ColumnConfigDialog
 # Import FilterDialog for advanced filtering
 from librarian_assistant.filter_dialog import FilterDialog
+# Import HistoryManager for search history
+from librarian_assistant.history_manager import HistoryManager
 
-import webbrowser # For Prompt 4.3
+import webbrowser # For opening external links
 import logging
 logger = logging.getLogger(__name__)
 
@@ -391,6 +391,7 @@ class MainWindow(QMainWindow):
             token_manager=self.config_manager
         )
         self.image_downloader = ImageDownloader()
+        self.history_manager = HistoryManager()
 
         self.tab_widget = QTabWidget()
         self.setCentralWidget(self.tab_widget)
@@ -559,14 +560,54 @@ class MainWindow(QMainWindow):
 
         self.history_tab_content = QWidget()
         history_layout = QVBoxLayout(self.history_tab_content)
-        history_label = QLabel("History")
-        history_layout.addWidget(history_label)
+        
+        # History controls
+        history_controls_layout = QHBoxLayout()
+        
+        # Search/filter box
+        self.history_search_box = QLineEdit()
+        self.history_search_box.setPlaceholderText("Search history...")
+        self.history_search_box.textChanged.connect(self._filter_history)
+        history_controls_layout.addWidget(QLabel("Search:"))
+        history_controls_layout.addWidget(self.history_search_box)
+        
+        # Sort dropdown
+        self.history_sort_combo = QComboBox()
+        self.history_sort_combo.addItems(["Sort by Book ID", "Sort by Title", "Sort by Date (Newest First)"])
+        self.history_sort_combo.currentTextChanged.connect(self._sort_history)
+        history_controls_layout.addWidget(self.history_sort_combo)
+        
+        # Clear history button
+        self.clear_history_button = QPushButton("Clear History")
+        self.clear_history_button.clicked.connect(self._clear_history)
+        history_controls_layout.addWidget(self.clear_history_button)
+        
+        history_controls_layout.addStretch()
+        history_layout.addLayout(history_controls_layout)
+        
+        # History list
+        self.history_list = QTableWidget()
+        self.history_list.setColumnCount(3)
+        self.history_list.setHorizontalHeaderLabels(["Book ID", "Title", "Date Searched"])
+        self.history_list.setSelectionBehavior(QTableWidget.SelectRows)
+        self.history_list.horizontalHeader().setStretchLastSection(True)
+        self.history_list.itemDoubleClicked.connect(self._on_history_item_double_clicked)
+        history_layout.addWidget(self.history_list)
+        
+        # Instructions
+        history_instructions = QLabel("Double-click a book to search it again.")
+        history_instructions.setStyleSheet("color: #888; font-style: italic;")
+        history_layout.addWidget(history_instructions)
+        
         self.tab_widget.addTab(self.history_tab_content, "History")
 
         self.status_bar = self.statusBar()
         self.status_bar.showMessage("Ready")
 
         self._update_token_display()
+        
+        # Load and display history
+        self._populate_history_list()
         
         # Connect toggled signals for collapsible behavior
         self.api_input_area.toggled.connect(self._on_api_input_toggled)
@@ -661,6 +702,11 @@ class MainWindow(QMainWindow):
                 self.status_bar.showMessage(f"Book data fetched successfully for ID {book_id_str}.")
                 logger.info(f"Successfully fetched data for Book ID {book_id_int}: {book_data.get('title', 'N/A')}")
                 logger.info(f"Complete book_data received by main.py for Book ID {book_id_int}: {book_data}")
+                
+                # Add to search history
+                book_title = book_data.get('title', 'Unknown Title')
+                self.history_manager.add_search(book_id_int, book_title)
+                self._populate_history_list()  # Refresh history display
 
                 # Re-create and populate the General Book Information Area widgets
                 # Title
@@ -1511,6 +1557,41 @@ class MainWindow(QMainWindow):
                 self.editions_table_widget.setRowHidden(row, False)
         
         self.status_bar.showMessage("Filters cleared.", 3000)
+    
+    def _filter_history(self, search_text: str):
+        """Filter history items based on search text."""
+        # Implementation placeholder for history filtering
+        pass
+    
+    def _sort_history(self, sort_by: str):
+        """Sort history items by the specified field."""
+        # Implementation placeholder for history sorting
+        pass
+    
+    def _populate_history(self):
+        """Populate the history list widget with saved searches."""
+        # Implementation placeholder for populating history
+        pass
+    
+    def _populate_history_list(self):
+        """Populate the history list widget with saved searches."""
+        # Implementation placeholder for populating history list
+        pass
+    
+    def _clear_history(self):
+        """Clear all search history."""
+        # Implementation placeholder for clearing history
+        pass
+    
+    def _on_history_item_clicked(self, item):
+        """Handle clicking on a history item to re-fetch that book."""
+        # Implementation placeholder for history item clicks
+        pass
+    
+    def _on_history_item_double_clicked(self, item):
+        """Handle double-clicking on a history item to re-fetch that book."""
+        # Implementation placeholder for history item double clicks
+        pass
 
 def main():
     """

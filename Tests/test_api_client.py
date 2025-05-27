@@ -6,10 +6,7 @@ from unittest.mock import MagicMock, patch # Import patch
 import requests
 from librarian_assistant.exceptions import ApiNotFoundError, ApiAuthError, NetworkError, ApiProcessingError
 
-# Attempt to import the class we're about to create.
-# This will initially fail, which is part of TDD.
-# from librarian_assistant.api_client import ApiClient
-# from librarian_assistant.config_manager import ConfigManager
+# Import statements are placed within test methods to handle missing imports gracefully
 
 class TestApiClient(unittest.TestCase):
 
@@ -17,8 +14,7 @@ class TestApiClient(unittest.TestCase):
         """
         Tests that the ApiClient can be instantiated with a base URL and a token manager.
         """
-        # We'll need to import these once the api_client.py file is created.
-        # For now, the test will fail on the import of ApiClient itself.
+        # Import the required classes
         from librarian_assistant.api_client import ApiClient
         from librarian_assistant.config_manager import ConfigManager # Assuming ConfigManager is used
 
@@ -37,10 +33,8 @@ class TestApiClient(unittest.TestCase):
         from librarian_assistant.api_client import ApiClient
         from librarian_assistant.config_manager import ConfigManager
 
-        # Assume this is the base URL for the API
-        # From Prompt 1.1 in todo.md, API_URL = "https://api.hardcover.app/v1/graphql"
-        # The ApiClient's base_url should be this.
-        # For this test, we'll ensure the ApiClient is initialized with it.
+        # The base URL for the Hardcover API
+        # API_URL = "https://api.hardcover.app/v1/graphql"
         # However, the ApiClient's __init__ already takes base_url.
         # The actual endpoint for GraphQL is usually the base_url itself.
         

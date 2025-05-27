@@ -1,4 +1,5 @@
-# In tests/test_main_window.py
+# ABOUTME: This file contains unit tests for the MainWindow class.
+# ABOUTME: It tests the main UI window functionality including book fetching and display.
 import unittest
 from unittest.mock import patch, Mock # Import patch and Mock
 from PyQt5.QtWidgets import QApplication, QLabel, QLineEdit, QPushButton, QGroupBox, QTableWidget, QHeaderView, QTableWidgetItem, QFrame
@@ -498,7 +499,6 @@ class TestMainWindow(unittest.TestCase):
         """
         Test that all UI elements for General Book Information are present after
         MainWindow instantiation and display their default "Not Fetched" or "N/A" text.
-        Corresponds to todo.md Prompt 4.1.
         """
         # Find the "General Book Information Area" QGroupBox
         book_info_area = self.window.findChild(QGroupBox, "bookInfoArea")

@@ -166,3 +166,22 @@ __pycache__
 # so they are not included here by default unless you add them.
 
 # If you use other tools or have other specific files to ignore, add them here.
+
+# Development documentation and notes
+*.todo
+*.spec
+notes/
+docs/private/
+.notes/
+
+# Local configuration and tools
+.local/
+.tools/
+*.local.*
+local-*
+
+# Temporary planning files
+planning/
+drafts/
+*.draft
+*.plan
