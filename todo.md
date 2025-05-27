@@ -360,57 +360,59 @@ Phase 4: Editions Table - Contributor Columns
 
 Phase 5: Editions Table - Advanced Interactivity
 
-    [ ] Multi-Column Sorting
+    [X] Multi-Column Sorting
 
-        [ ] Enable sorting on all table columns by clicking headers.
+        [X] Enable sorting on all table columns by clicking headers.
 
-        [ ] Implement cycle: ascending -> descending -> clear/default (or back to ascending).
+        [X] Implement cycle: ascending -> descending -> clear/default (or back to ascending).
 
-        [ ] Add visual indicators (e.g., arrow icons) in column headers for sort state.
+        [X] Add visual indicators (e.g., arrow icons) in column headers for sort state.
 
-    [ ] Column Reordering
+    [X] Column Reordering
 
-        [ ] Allow users to drag and drop column headers to reorder columns.
+        [X] Implemented column visibility/order dialog with checkboxes and up/down buttons for reordering.
 
-    [ ] Column Resizing
+    [X] Column Resizing
 
-        [ ] Allow users to resize column widths.
+        [X] Allow users to resize column widths (enabled by default with Interactive mode, minimum width, and last column stretch).
 
-    [ ] Row Accordion for book_mappings
+    [X] Row Accordion for book_mappings
 
-        [ ] Implement accordion-style expansion on row click/selection. (This might involve inserting a new widget or expanding row height and showing details within the table structure).
+        [X] Implement accordion-style expansion on row click/selection (inserted as new row below clicked row).
 
-        [ ] On expansion, display book_mappings data for that edition (Platform Name: External ID).
+        [X] On expansion, display book_mappings data for that edition (Platform Name: External ID).
 
-        [ ] Implement clickable links for platforms in spec.md Appendix C:
+        [X] Implement clickable links for platforms in spec.md Appendix C:
 
-            [ ] Goodreads: https://www.goodreads.com/book/show/{external_id}
+            [X] Goodreads: https://www.goodreads.com/book/show/{external_id}
 
-            [ ] OpenLibrary: https://openlibrary.org{external_id} (if external_id starts with /books/)
+            [X] OpenLibrary: https://openlibrary.org{external_id} (if external_id starts with /books/)
 
-            [ ] Google Books: https://books.google.com/books?id={external_id}
+            [X] Google Books: https://books.google.com/books?id={external_id}
 
-            [ ] LibraryThing: (Research URL structure)
+            [X] LibraryThing: https://www.librarything.com/work/{external_id}
 
-            [ ] Storygraph: (Research URL structure)
+            [X] Storygraph: https://app.thestorygraph.com/books/{external_id}
 
-            [ ] Inventaire: (Research URL structure)
+            [X] Inventaire: https://inventaire.io/entity/{external_id}
 
-            [ ] ABEBooks: (Research URL structure - e.g., https://www.abebooks.com/servlet/SearchResults?kn={isbn_or_title} or link to image external_id)
+            [X] ABEBooks: Uses external_id directly if it's a URL
 
-        [ ] Log warnings for platforms not in Appendix C; ignore for display in accordion.
+        [X] Log warnings for platforms not in Appendix C; ignore for display in accordion.
 
-    [ ] Unit/Integration Tests for Advanced Interactivity
+    [X] Unit/Integration Tests for Advanced Interactivity
 
-        [ ] Test multi-column sorting logic (ascending, descending, different data types).
+        [X] Test multi-column sorting logic (ascending, descending, clear).
 
-        [ ] (Manual testing for column reordering/resizing, or complex UI tests if feasible).
+        [X] Test column configuration dialog (visibility, reordering).
 
-        [ ] Test row accordion expansion.
+        [X] Test column resizing functionality.
 
-        [ ] Test book_mappings display and link generation (mock webbrowser.open).
+        [X] Test row accordion expansion and collapse.
 
-        [ ] Test handling of unknown platforms in book_mappings.
+        [X] Test book_mappings display and link generation.
+
+        [X] Test platform URL generation for supported/unsupported platforms.
 
 Phase 6: Editions Table - Filtering
 

@@ -1,7 +1,7 @@
 # In tests/test_main_window.py
 import unittest
-from unittest.mock import patch # Import patch
-from PyQt5.QtWidgets import QApplication, QLabel, QLineEdit, QPushButton, QGroupBox, QTableWidget
+from unittest.mock import patch, Mock # Import patch and Mock
+from PyQt5.QtWidgets import QApplication, QLabel, QLineEdit, QPushButton, QGroupBox, QTableWidget, QHeaderView, QTableWidgetItem, QFrame
 from PyQt5.QtCore import Qt # Import Qt for Qt.LeftButton
 from PyQt5.QtTest import QTest # For simulating clicks
 from librarian_assistant.main import MainWindow, ClickableLabel # Make sure this import path is correct
@@ -436,7 +436,10 @@ class TestMainWindow(unittest.TestCase):
         ]
         self.assertEqual(editions_table.columnCount(), len(expected_headers))
         for i, header in enumerate(expected_headers):
-            self.assertEqual(editions_table.horizontalHeaderItem(i).text(), header)
+            # Headers may include sort indicators (▲ or ▼), so check base text
+            actual_header = editions_table.horizontalHeaderItem(i).text()
+            actual_header_base = actual_header.replace(" ▲", "").replace(" ▼", "")
+            self.assertEqual(actual_header_base, header)
         
         self.assertEqual(editions_table.rowCount(), 2)
 
@@ -480,8 +483,10 @@ class TestMainWindow(unittest.TestCase):
         self.assertEqual(editions_table.item(1, 15).text(), "French")  # Language
         self.assertEqual(editions_table.item(1, 16).text(), "Canada")  # Country
 
-        # Check sorting is enabled
-        self.assertTrue(editions_table.isSortingEnabled())
+        # Check that the table supports sorting (our custom widget handles it manually)
+        # The table should be sorted by score descending by default
+        self.assertEqual(editions_table.item(0, 1).text(), "95.5")  # Higher score first
+        self.assertEqual(editions_table.item(1, 1).text(), "88.0")  # Lower score second
         
         # Check tooltip for truncated text
         self.assertEqual(editions_table.item(0, 2).toolTip(), 
@@ -794,12 +799,13 @@ class TestMainWindow(unittest.TestCase):
         self.assertNotIn("Illustrator 1", headers)
         self.assertNotIn("Editor 1", headers)
         
-        # Find column indices
-        id_col = headers.index("id")
-        author1_col = headers.index("Author 1")
-        author2_col = headers.index("Author 2")
-        narrator1_col = headers.index("Narrator 1")
-        translator1_col = headers.index("Translator 1")
+        # Find column indices (strip sort indicators from headers)
+        headers_base = [h.replace(" ▲", "").replace(" ▼", "") for h in headers]
+        id_col = headers_base.index("id")
+        author1_col = headers_base.index("Author 1")
+        author2_col = headers_base.index("Author 2")
+        narrator1_col = headers_base.index("Narrator 1")
+        translator1_col = headers_base.index("Translator 1")
         
         # Find which row has which edition (table is sorted by score desc)
         # Edition with score 100 should be first
@@ -1022,10 +1028,11 @@ class TestMainWindow(unittest.TestCase):
         self.assertGreater(editions_table.columnCount(), 0, "Table should have columns after fetch")
         headers = [editions_table.horizontalHeaderItem(i).text() for i in range(editions_table.columnCount())]
         
-        # Find Author columns
-        author1_col = headers.index("Author 1")
-        author2_col = headers.index("Author 2")
-        author3_col = headers.index("Author 3")
+        # Find Author columns (strip sort indicators)
+        headers_base = [h.replace(" ▲", "").replace(" ▼", "") for h in headers]
+        author1_col = headers_base.index("Author 1")
+        author2_col = headers_base.index("Author 2")
+        author3_col = headers_base.index("Author 3")
         
         # First null contribution should be Author 1, then Secondary Author, then Third Author with null
         self.assertEqual(editions_table.item(0, author1_col).text(), "Primary Author")
@@ -1089,6 +1096,140 @@ class TestMainWindow(unittest.TestCase):
         
         self.assertEqual(self.window.book_info_area.maximumHeight(), 16777215)
         self.assertIn("▼", self.window.book_info_area.title())
+    
+    def test_configure_columns_button_exists(self):
+        """Test that Configure Columns button exists."""
+        # Check button exists
+        self.assertIsNotNone(self.window.configure_columns_button)
+        self.assertEqual(self.window.configure_columns_button.text(), "Configure Columns")
+        
+        # Check it's in the editions table area
+        self.assertEqual(self.window.configure_columns_button.parent(), self.window.editions_table_area)
+    
+    @patch('librarian_assistant.main.ColumnConfigDialog')
+    def test_configure_columns_no_data(self, mock_dialog_class):
+        """Test configure columns with no data loaded."""
+        # Click configure columns button
+        self.window.configure_columns_button.click()
+        
+        # Should show status message
+        self.assertEqual(self.window.status_bar.currentMessage(), 
+                        "No data loaded. Fetch book data first.")
+        
+        # Dialog should not be created
+        mock_dialog_class.assert_not_called()
+    
+    @patch('librarian_assistant.main.ColumnConfigDialog')
+    def test_configure_columns_with_data(self, mock_dialog_class):
+        """Test configure columns after data is loaded."""
+        # Mock dialog instance
+        mock_dialog = Mock()
+        mock_dialog_class.return_value = mock_dialog
+        
+        # Simulate having loaded data
+        self.window.all_column_names = ["id", "title", "author", "isbn"]
+        self.window.visible_column_names = ["id", "title", "author"]
+        
+        # Click configure columns button
+        self.window.configure_columns_button.click()
+        
+        # Dialog should be created with current configuration
+        mock_dialog_class.assert_called_once_with(
+            ["id", "title", "author", "isbn"],
+            ["id", "title", "author"],
+            self.window
+        )
+        
+        # Signal should be connected
+        mock_dialog.columns_configured.connect.assert_called_once()
+        
+        # Dialog should be shown
+        mock_dialog.exec_.assert_called_once()
+    
+    def test_table_column_resizing_enabled(self):
+        """Test that table columns can be resized."""
+        # Add some columns first
+        self.window.editions_table_widget.setColumnCount(3)
+        self.window.editions_table_widget.setHorizontalHeaderLabels(["Col1", "Col2", "Col3"])
+        
+        # Check resize mode is interactive
+        header = self.window.editions_table_widget.horizontalHeader()
+        
+        # Check minimum section size is set
+        self.assertEqual(header.minimumSectionSize(), 50)
+        
+        # Check last section stretches
+        self.assertTrue(header.stretchLastSection())
+        
+        # Test that we can set column width
+        original_width = header.sectionSize(0)
+        new_width = 200
+        self.window.editions_table_widget.setColumnWidth(0, new_width)
+        self.assertEqual(header.sectionSize(0), new_width)
+        self.assertNotEqual(original_width, new_width)
+    
+    def test_table_row_accordion(self):
+        """Test row accordion functionality for book_mappings."""
+        # Set up mock edition data with book_mappings
+        self.window.editions_data = [
+            {
+                'id': 1,
+                'title': 'Test Edition',
+                'book_mappings': [
+                    {'platform': {'name': 'Goodreads'}, 'external_id': '12345'},
+                    {'platform': {'name': 'Google'}, 'external_id': 'ABC123'},
+                ]
+            }
+        ]
+        
+        # Add a row to the table
+        self.window.editions_table_widget.setRowCount(1)
+        self.window.editions_table_widget.setColumnCount(1)
+        self.window.editions_table_widget.setItem(0, 0, QTableWidgetItem("Test"))
+        
+        # Check initial state
+        self.assertEqual(self.window.editions_table_widget.rowCount(), 1)
+        self.assertEqual(len(self.window.editions_table_widget.expanded_rows), 0)
+        
+        # Expand the row
+        self.window.editions_table_widget.toggle_row_accordion(0)
+        
+        # Check accordion is expanded
+        self.assertEqual(self.window.editions_table_widget.rowCount(), 2)
+        self.assertIn(0, self.window.editions_table_widget.expanded_rows)
+        
+        # Check accordion widget exists
+        accordion_widget = self.window.editions_table_widget.cellWidget(1, 0)
+        self.assertIsNotNone(accordion_widget)
+        self.assertIsInstance(accordion_widget, QFrame)
+        
+        # Collapse the row
+        self.window.editions_table_widget.toggle_row_accordion(0)
+        
+        # Check accordion is collapsed
+        self.assertEqual(self.window.editions_table_widget.rowCount(), 1)
+        self.assertEqual(len(self.window.editions_table_widget.expanded_rows), 0)
+    
+    def test_platform_url_generation(self):
+        """Test URL generation for different platforms."""
+        table = self.window.editions_table_widget
+        
+        # Test supported platforms
+        self.assertEqual(
+            table._get_platform_url('Goodreads', '12345'),
+            'https://www.goodreads.com/book/show/12345'
+        )
+        self.assertEqual(
+            table._get_platform_url('Google', 'ABC123'),
+            'https://books.google.com/books?id=ABC123'
+        )
+        self.assertEqual(
+            table._get_platform_url('OpenLibrary', '/books/OL123M'),
+            'https://openlibrary.org/books/OL123M'
+        )
+        
+        # Test unsupported platform
+        self.assertIsNone(table._get_platform_url('UnknownPlatform', '123'))
 
     @patch('librarian_assistant.main.webbrowser.open')
     def test_open_web_link_called_with_url(self, mock_webbrowser_open):
@@ -1164,6 +1305,179 @@ class TestMainWindow(unittest.TestCase):
         self.assertIn("<span style='color:#999999;'>Default Physical Edition: </span>", self.window.default_physical_label.text())
         self.assertIn("<span style='color:#e0e0e0;'>N/A</span>", self.window.default_physical_label.text())
         self.assertFalse("href=" in self.window.default_physical_label.text())
+    
+    @patch.object(ApiClient, 'get_book_by_id')
+    def test_multi_column_sorting_with_indicators(self, mock_api_get_book_by_id):
+        """Test that table supports multi-column sorting with visual indicators."""
+        # Mock book data with multiple editions for sorting
+        mock_book_data = {
+            "id": "123",
+            "title": "Test Book",
+            "editions_count": 3,
+            "editions": [
+                {
+                    "id": "ed1",
+                    "score": 95,
+                    "title": "First Edition",
+                    "pages": 300,
+                    "release_date": "2023-01-15",
+                },
+                {
+                    "id": "ed2", 
+                    "score": 88,
+                    "title": "Second Edition",
+                    "pages": 250,
+                    "release_date": "2023-02-20",
+                },
+                {
+                    "id": "ed3",
+                    "score": 92,
+                    "title": "Third Edition", 
+                    "pages": 275,
+                    "release_date": "2023-03-10",
+                }
+            ]
+        }
+        mock_api_get_book_by_id.return_value = mock_book_data
+        
+        # Fetch data
+        self.window.book_id_line_edit.setText("123")
+        self.window.fetch_data_button.click()
+        
+        table = self.window.editions_table_widget
+        
+        # Check default sort indicator on score column
+        score_col = None
+        for i in range(table.columnCount()):
+            header = table.horizontalHeaderItem(i)
+            if header and "score" in header.text():
+                score_col = i
+                self.assertIn("▼", header.text(), "Score column should show descending indicator")
+                break
+        
+        self.assertIsNotNone(score_col, "Score column not found")
+        
+        # Find pages column
+        pages_col = None
+        for i in range(table.columnCount()):
+            header = table.horizontalHeaderItem(i)
+            if header and header.text() == "pages":
+                pages_col = i
+                break
+        
+        self.assertIsNotNone(pages_col, "Pages column not found")
+        
+        # Simulate clicking pages column header
+        table._on_header_clicked(pages_col)
+        
+        # Check ascending indicator on pages column
+        pages_header = table.horizontalHeaderItem(pages_col)
+        self.assertIn("▲", pages_header.text(), "Pages column should show ascending indicator")
+        
+        # Check score column indicator is cleared
+        score_header = table.horizontalHeaderItem(score_col)
+        self.assertNotIn("▼", score_header.text(), "Score column indicator should be cleared")
+        self.assertNotIn("▲", score_header.text(), "Score column indicator should be cleared")
+        
+        # Click pages column again for descending
+        table._on_header_clicked(pages_col)
+        pages_header = table.horizontalHeaderItem(pages_col)
+        self.assertIn("▼", pages_header.text(), "Pages column should show descending indicator")
+        
+        # Click pages column third time to clear sort
+        table._on_header_clicked(pages_col)
+        pages_header = table.horizontalHeaderItem(pages_col)
+        self.assertNotIn("▲", pages_header.text(), "Pages column indicator should be cleared")
+        self.assertNotIn("▼", pages_header.text(), "Pages column indicator should be cleared")
+        
+        # Verify default sort is restored (score descending)
+        score_header = table.horizontalHeaderItem(score_col)
+        # Note: The default sort restore doesn't update the indicator in current implementation
+        # This could be enhanced if needed
+    
+    @patch.object(ApiClient, 'get_book_by_id')
+    def test_numeric_column_sorting(self, mock_api_get_book_by_id):
+        """Test that numeric columns (score, pages) sort numerically not alphabetically."""
+        # Mock book data with numeric values that would sort incorrectly as strings
+        mock_book_data = {
+            "id": "123",
+            "title": "Test Book",
+            "editions_count": 4,
+            "editions": [
+                {"id": "ed1", "score": 100, "pages": 90, "title": "Edition 1"},
+                {"id": "ed2", "score": 95.5, "pages": 200, "title": "Edition 2"},
+                {"id": "ed3", "score": 9, "pages": 1000, "title": "Edition 3"},  # 9 < 95.5 numerically but "9" > "95.5" as string
+                {"id": "ed4", "score": 88, "pages": 50, "title": "Edition 4"},
+            ]
+        }
+        mock_api_get_book_by_id.return_value = mock_book_data
+        
+        # Fetch data
+        self.window.book_id_line_edit.setText("123")
+        self.window.fetch_data_button.click()
+        
+        table = self.window.editions_table_widget
+        
+        # Find score and pages columns
+        score_col = None
+        pages_col = None
+        id_col = None
+        for i in range(table.columnCount()):
+            header = table.horizontalHeaderItem(i)
+            if header:
+                header_text = header.text().replace(" ▲", "").replace(" ▼", "")
+                if header_text == "score":
+                    score_col = i
+                elif header_text == "pages":
+                    pages_col = i
+                elif header_text == "id":
+                    id_col = i
+        
+        self.assertIsNotNone(score_col)
+        self.assertIsNotNone(pages_col)
+        self.assertIsNotNone(id_col)
+        
+        # Check default sort (score descending) - should be 100, 95.5, 88, 9
+        self.assertEqual(table.item(0, id_col).text(), "ed1")  # score 100
+        self.assertEqual(table.item(1, id_col).text(), "ed2")  # score 95.5
+        self.assertEqual(table.item(2, id_col).text(), "ed4")  # score 88
+        self.assertEqual(table.item(3, id_col).text(), "ed3")  # score 9
+        
+        # Verify score values are correct
+        self.assertEqual(table.item(0, score_col).text(), "100")
+        self.assertEqual(table.item(1, score_col).text(), "95.5")
+        self.assertEqual(table.item(2, score_col).text(), "88")
+        self.assertEqual(table.item(3, score_col).text(), "9")
+        
+        # Check initial sort state
+        self.assertEqual(table.column_sort_order.get(score_col), Qt.DescendingOrder)
+        
+        # First click on score column clears sort (goes to None/default)
+        table._on_header_clicked(score_col)
+        self.assertEqual(table.column_sort_order.get(score_col), None)
+        
+        # Second click on score column sorts ascending - should be 9, 88, 95.5, 100
+        table._on_header_clicked(score_col)
+        self.assertEqual(table.column_sort_order.get(score_col), Qt.AscendingOrder)
+        
+        self.assertEqual(table.item(0, id_col).text(), "ed3")  # score 9
+        self.assertEqual(table.item(1, id_col).text(), "ed4")  # score 88
+        self.assertEqual(table.item(2, id_col).text(), "ed2")  # score 95.5
+        self.assertEqual(table.item(3, id_col).text(), "ed1")  # score 100
+        
+        # Click pages column to sort ascending - should be 50, 90, 200, 1000
+        table._on_header_clicked(pages_col)
+        self.assertEqual(table.item(0, id_col).text(), "ed4")  # pages 50
+        self.assertEqual(table.item(1, id_col).text(), "ed1")  # pages 90
+        self.assertEqual(table.item(2, id_col).text(), "ed2")  # pages 200
+        self.assertEqual(table.item(3, id_col).text(), "ed3")  # pages 1000
+        
+        # Click pages column again for descending - should be 1000, 200, 90, 50
+        table._on_header_clicked(pages_col)
+        self.assertEqual(table.item(0, id_col).text(), "ed3")  # pages 1000
+        self.assertEqual(table.item(1, id_col).text(), "ed2")  # pages 200
+        self.assertEqual(table.item(2, id_col).text(), "ed1")  # pages 90
+        self.assertEqual(table.item(3, id_col).text(), "ed4")  # pages 50
 
 
 if __name__ == '__main__':

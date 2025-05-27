@@ -3,9 +3,9 @@
 import sys
 from datetime import datetime
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QTabWidget, QWidget, QLineEdit, QTableWidget, QTableWidgetItem, QScrollArea,
-                             QVBoxLayout, QLabel, QGroupBox, QPushButton)
+                             QVBoxLayout, QHBoxLayout, QLabel, QGroupBox, QPushButton, QHeaderView, QFrame)
 from PyQt5.QtGui import QIntValidator, QValidator
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 
 # Import ConfigManager for Prompt 2.2
 from librarian_assistant.config_manager import ConfigManager
@@ -17,6 +17,8 @@ from librarian_assistant.api_client import ApiClient
 from librarian_assistant.exceptions import ApiException, ApiNotFoundError
 # Import ImageDownloader for Prompt 4.1
 from librarian_assistant.image_downloader import ImageDownloader
+# Import ColumnConfigDialog for column configuration
+from librarian_assistant.column_config_dialog import ColumnConfigDialog
 
 import webbrowser # For Prompt 4.3
 import logging
@@ -78,6 +80,285 @@ class ClickableLabel(QLabel):
             self.setText(html_text)
             self.setCursor(Qt.ArrowCursor)
             self.setToolTip("")
+
+
+class NumericTableWidgetItem(QTableWidgetItem):
+    """A QTableWidgetItem that sorts numerically instead of alphabetically."""
+    
+    def __init__(self, text, numeric_value=None):
+        super().__init__(text)
+        # Store the numeric value for sorting
+        if numeric_value is not None:
+            self.setData(Qt.UserRole, numeric_value)
+    
+    def __lt__(self, other):
+        """Override less-than operator for proper numeric sorting."""
+        my_value = self.data(Qt.UserRole)
+        other_value = other.data(Qt.UserRole) if hasattr(other, 'data') else None
+        
+        # Handle None/N/A values
+        if my_value is None:
+            return True  # None values sort to beginning
+        if other_value is None:
+            return False
+            
+        # Compare numeric values
+        try:
+            return float(my_value) < float(other_value)
+        except (ValueError, TypeError):
+            # Fall back to string comparison
+            return self.text() < other.text()
+
+
+class SortableTableWidget(QTableWidget):
+    """
+    A QTableWidget with enhanced sorting capabilities:
+    - Cycles through ascending → descending → no sort
+    - Shows visual indicators in headers
+    - Row accordion for displaying additional data
+    """
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        
+        # Track sort state for each column
+        self.column_sort_order = {}  # column_index: Qt.SortOrder or None
+        self.last_sorted_column = None
+        
+        # Track expanded rows and their accordion widgets
+        self.expanded_rows = {}  # row_index: accordion_widget
+        
+        # Connect header click to custom sort handler
+        self.horizontalHeader().sectionClicked.connect(self._on_header_clicked)
+        
+        # Disable the default sorting behavior
+        self.setSortingEnabled(False)
+        
+        # Enable column resizing
+        self.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        self.horizontalHeader().setStretchLastSection(True)  # Make last column fill remaining space
+        self.horizontalHeader().setMinimumSectionSize(50)  # Minimum column width
+        
+        # Connect row click for accordion
+        self.itemClicked.connect(self._on_item_clicked)
+        
+    def _on_header_clicked(self, logical_index):
+        """Handle header click to cycle through sort states."""
+        # Get current sort order for this column
+        current_order = self.column_sort_order.get(logical_index)
+        
+        # Clear sort indicators from all other columns
+        for col in list(self.column_sort_order.keys()):
+            if col != logical_index:
+                del self.column_sort_order[col]
+                self._update_header_text(col)
+        
+        # Cycle through sort states
+        if current_order is None:
+            # No sort → Ascending
+            new_order = Qt.AscendingOrder
+        elif current_order == Qt.AscendingOrder:
+            # Ascending → Descending
+            new_order = Qt.DescendingOrder
+        else:
+            # Descending → No sort (clear)
+            new_order = None
+            
+        # Update sort state
+        self.column_sort_order[logical_index] = new_order
+        self.last_sorted_column = logical_index if new_order is not None else None
+        
+        # Update header to show sort indicator
+        self._update_header_text(logical_index)
+        
+        # Perform the sort
+        if new_order is not None:
+            self.sortItems(logical_index, new_order)
+        else:
+            # Clear sort - restore original order or default sort
+            self._restore_default_sort()
+    
+    def _update_header_text(self, column_index):
+        """Update header text with sort indicator."""
+        header_item = self.horizontalHeaderItem(column_index)
+        if header_item:
+            base_text = header_item.text()
+            # Remove any existing indicators
+            base_text = base_text.replace(" ▲", "").replace(" ▼", "")
+            
+            # Add new indicator if sorted
+            sort_order = self.column_sort_order.get(column_index)
+            if sort_order == Qt.AscendingOrder:
+                header_item.setText(f"{base_text} ▲")
+            elif sort_order == Qt.DescendingOrder:
+                header_item.setText(f"{base_text} ▼")
+            else:
+                header_item.setText(base_text)
+    
+    def _restore_default_sort(self):
+        """Restore default sort (by score descending)."""
+        # Find score column
+        for col in range(self.columnCount()):
+            header = self.horizontalHeaderItem(col)
+            if header and header.text().replace(" ▲", "").replace(" ▼", "") == "score":
+                self.sortItems(col, Qt.DescendingOrder)
+                break
+    
+    def setHorizontalHeaderLabels(self, labels):
+        """Override to track original header labels."""
+        super().setHorizontalHeaderLabels(labels)
+        # Clear any existing sort states when headers are set
+        self.column_sort_order.clear()
+        self.last_sorted_column = None
+    
+    def _on_item_clicked(self, item):
+        """Handle item click to toggle row accordion."""
+        if not item:
+            return
+            
+        row = item.row()
+        self.toggle_row_accordion(row)
+    
+    def toggle_row_accordion(self, row):
+        """Toggle the accordion for a specific row."""
+        if row in self.expanded_rows:
+            # Collapse the row
+            self._collapse_row(row)
+        else:
+            # Expand the row
+            self._expand_row(row)
+    
+    def _expand_row(self, row):
+        """Expand a row to show accordion content."""
+        # Get the book_mappings data for this row
+        book_mappings = self.get_row_book_mappings(row)
+        if not book_mappings:
+            return
+            
+        # Create accordion widget
+        accordion_widget = self._create_accordion_widget(book_mappings)
+        
+        # Insert the accordion below the row
+        self.insertRow(row + 1)
+        self.setSpan(row + 1, 0, 1, self.columnCount())
+        self.setCellWidget(row + 1, 0, accordion_widget)
+        
+        # Track the expanded row
+        self.expanded_rows[row] = row + 1  # Store the accordion row index
+        
+        # Adjust row heights
+        self.resizeRowToContents(row + 1)
+    
+    def _collapse_row(self, row):
+        """Collapse an expanded row."""
+        if row not in self.expanded_rows:
+            return
+            
+        accordion_row = self.expanded_rows[row]
+        
+        # Remove the accordion row
+        self.removeRow(accordion_row)
+        
+        # Update tracking for rows that shifted
+        del self.expanded_rows[row]
+        
+        # Update indices for expanded rows below this one
+        updated_expanded = {}
+        for exp_row, acc_row in self.expanded_rows.items():
+            if exp_row > row:
+                updated_expanded[exp_row - 1] = acc_row - 1
+            else:
+                updated_expanded[exp_row] = acc_row if acc_row < accordion_row else acc_row - 1
+        self.expanded_rows = updated_expanded
+    
+    def _create_accordion_widget(self, book_mappings):
+        """Create the accordion widget displaying book mappings."""
+        from PyQt5.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout
+        
+        frame = QFrame()
+        frame.setFrameStyle(QFrame.Box)
+        frame.setStyleSheet("""
+            QFrame {
+                background-color: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                padding: 10px;
+                margin: 5px;
+            }
+        """)
+        
+        layout = QVBoxLayout(frame)
+        
+        # Title
+        title_label = QLabel("<b>Book Mappings:</b>")
+        layout.addWidget(title_label)
+        
+        # Platform mappings
+        for mapping in book_mappings:
+            platform_name = mapping.get('platform', {}).get('name', 'Unknown')
+            external_id = mapping.get('external_id', '')
+            
+            # Create clickable link based on platform
+            link_url = self._get_platform_url(platform_name, external_id)
+            
+            if link_url:
+                # Create clickable label
+                mapping_label = ClickableLabel()
+                mapping_label.setContent(f"{platform_name}: ", external_id, link_url)
+                mapping_label.linkActivated.connect(lambda url: webbrowser.open(url))
+            else:
+                # Non-clickable label for unsupported platforms
+                mapping_label = QLabel(f"{platform_name}: {external_id}")
+                logger.warning(f"Unsupported platform in book_mappings: {platform_name}")
+            
+            layout.addWidget(mapping_label)
+        
+        return frame
+    
+    def _get_platform_url(self, platform_name, external_id):
+        """Get the URL for a platform based on its name and external ID."""
+        platform_lower = platform_name.lower()
+        
+        # URL patterns for supported platforms
+        platform_urls = {
+            'goodreads': f'https://www.goodreads.com/book/show/{external_id}',
+            'librarything': f'https://www.librarything.com/work/{external_id}',  # May need adjustment
+            'openlibrary': f'https://openlibrary.org{external_id}' if external_id.startswith('/books/') else f'https://openlibrary.org/books/{external_id}',
+            'google': f'https://books.google.com/books?id={external_id}',
+            'google books': f'https://books.google.com/books?id={external_id}',
+            'storygraph': f'https://app.thestorygraph.com/books/{external_id}',  # May need adjustment
+            'inventaire': f'https://inventaire.io/entity/{external_id}',  # May need adjustment
+            'abebooks': external_id if external_id.startswith('http') else None,  # Often an image URL
+        }
+        
+        return platform_urls.get(platform_lower)
+    
+    def get_row_book_mappings(self, row):
+        """Get book_mappings data for a specific row. This should be overridden by the main window."""
+        # This will be overridden in MainWindow to provide actual data
+        return []
+    
+    def setRowCount(self, rows):
+        """Override to clear expanded rows when resetting table."""
+        super().setRowCount(rows)
+        self.expanded_rows.clear()
+
+
+class EditionsTableWidget(SortableTableWidget):
+    """
+    Custom table widget for editions that provides book_mappings data.
+    """
+    def __init__(self, main_window, parent=None):
+        super().__init__(parent)
+        self.main_window = main_window
+    
+    def get_row_book_mappings(self, row):
+        """Get book_mappings data for a specific row."""
+        if 0 <= row < len(self.main_window.editions_data):
+            edition_data = self.main_window.editions_data[row]
+            return edition_data.get('book_mappings', [])
+        return []
+
+
 class MainWindow(QMainWindow):
     """
     Main application window for Librarian-Assistant.
@@ -89,6 +370,14 @@ class MainWindow(QMainWindow):
         
         # Constants for table display
         self.MAX_CELL_TEXT_LENGTH = 50  # Maximum characters before truncation
+        
+        # Column configuration tracking
+        self.all_column_names = []  # All columns in current table
+        self.visible_column_names = []  # Currently visible columns
+        self.column_order_map = {}  # Maps display position to actual column index
+        
+        # Edition data storage for accordion
+        self.editions_data = []  # Store full edition data for each row
 
         self.config_manager = ConfigManager()
         self.api_client = ApiClient(
@@ -231,7 +520,16 @@ class MainWindow(QMainWindow):
         self.editions_table_area.setObjectName("editionsTableArea")
         self.editions_layout = QVBoxLayout(self.editions_table_area) # Store layout
         
-        self.editions_table_widget = QTableWidget()
+        # Add button bar for table controls
+        table_controls_layout = QHBoxLayout()
+        self.configure_columns_button = QPushButton("Configure Columns")
+        self.configure_columns_button.setObjectName("configureColumnsButton")
+        self.configure_columns_button.clicked.connect(self._on_configure_columns)
+        table_controls_layout.addWidget(self.configure_columns_button)
+        table_controls_layout.addStretch()  # Push button to the left
+        self.editions_layout.addLayout(table_controls_layout)
+        
+        self.editions_table_widget = EditionsTableWidget(self)
         self.editions_table_widget.setObjectName("editionsTableWidget")
         self.editions_layout.addWidget(self.editions_table_widget)
         main_view_layout.addWidget(self.editions_table_area)
@@ -346,6 +644,7 @@ class MainWindow(QMainWindow):
                 # Don't clear editions_layout - just clear the table data
                 self.editions_table_widget.setRowCount(0)  # Clear existing rows
                 self.editions_table_widget.setColumnCount(0)  # Clear existing columns
+                self.editions_data = []  # Clear edition data
                 self.status_bar.showMessage(f"Book data fetched successfully for ID {book_id_str}.")
                 logger.info(f"Successfully fetched data for Book ID {book_id_int}: {book_data.get('title', 'N/A')}")
                 logger.info(f"Complete book_data received by main.py for Book ID {book_id_int}: {book_data}")
@@ -533,9 +832,16 @@ class MainWindow(QMainWindow):
                     # Combine all headers
                     all_headers = static_headers + contributor_headers
                     
+                    # Store column configuration
+                    self.all_column_names = all_headers.copy()
+                    self.visible_column_names = all_headers.copy()  # Initially all visible
+                    
                     self.editions_table_widget.setColumnCount(len(all_headers))
                     self.editions_table_widget.setHorizontalHeaderLabels(all_headers)
                     self.editions_table_widget.setRowCount(len(editions))
+                    
+                    # Store edition data for accordion
+                    self.editions_data = editions
 
                     for row, edition_data in enumerate(editions):
                         col = 0
@@ -546,10 +852,10 @@ class MainWindow(QMainWindow):
                         
                         # score
                         score_value = edition_data.get('score')
-                        score_item = QTableWidgetItem(str(score_value) if score_value is not None else 'N/A')
-                        # Store numeric value for sorting
                         if score_value is not None:
-                            score_item.setData(Qt.UserRole, score_value)
+                            score_item = NumericTableWidgetItem(str(score_value), score_value)
+                        else:
+                            score_item = QTableWidgetItem('N/A')
                         self.editions_table_widget.setItem(row, col, score_item)
                         col += 1
                         
@@ -594,7 +900,11 @@ class MainWindow(QMainWindow):
                         
                         # pages
                         pages_value = edition_data.get('pages')
-                        self.editions_table_widget.setItem(row, col, QTableWidgetItem(str(pages_value) if pages_value is not None else 'N/A'))
+                        if pages_value is not None:
+                            pages_item = NumericTableWidgetItem(str(pages_value), pages_value)
+                        else:
+                            pages_item = QTableWidgetItem('N/A')
+                        self.editions_table_widget.setItem(row, col, pages_item)
                         col += 1
                         
                         # Duration (audio_seconds converted to HH:MM:SS)
@@ -604,9 +914,10 @@ class MainWindow(QMainWindow):
                             minutes = (audio_seconds % 3600) // 60
                             seconds = audio_seconds % 60
                             duration_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+                            duration_item = NumericTableWidgetItem(duration_str, audio_seconds)
                         else:
-                            duration_str = "N/A"
-                        self.editions_table_widget.setItem(row, col, QTableWidgetItem(duration_str))
+                            duration_item = QTableWidgetItem("N/A")
+                        self.editions_table_widget.setItem(row, col, duration_item)
                         col += 1
                         
                         # edition_format
@@ -664,12 +975,12 @@ class MainWindow(QMainWindow):
                                 else:
                                     self.editions_table_widget.setItem(row, col_idx, QTableWidgetItem("N/A"))
                     
-                    # Enable sorting
-                    self.editions_table_widget.setSortingEnabled(True)
-                    
                     # Default sort by score column (descending)
                     score_column = all_headers.index("score")
                     self.editions_table_widget.sortItems(score_column, Qt.DescendingOrder)
+                    # Set initial sort indicator
+                    self.editions_table_widget.column_sort_order[score_column] = Qt.DescendingOrder
+                    self.editions_table_widget._update_header_text(score_column)
                     
                     # Enable scrolling (should be enabled by default, but let's be explicit)
                     self.editions_table_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
@@ -873,6 +1184,109 @@ class MainWindow(QMainWindow):
                 widget = item.widget()
                 if widget is not None:
                     widget.deleteLater()
+    
+    def _on_configure_columns(self):
+        """
+        Show the column configuration dialog and apply changes.
+        """
+        # Only allow configuration if we have data
+        if not self.all_column_names:
+            self.status_bar.showMessage("No data loaded. Fetch book data first.", 3000)
+            return
+        
+        # Create dialog with current configuration
+        dialog = ColumnConfigDialog(
+            self.all_column_names,
+            self.visible_column_names,
+            self
+        )
+        
+        # Connect to configuration signal
+        dialog.columns_configured.connect(self._apply_column_configuration)
+        
+        # Show dialog
+        dialog.exec_()
+    
+    def _apply_column_configuration(self, new_column_order, new_visible_columns):
+        """
+        Apply the new column configuration to the table.
+        
+        Args:
+            new_column_order: List of all columns in new order
+            new_visible_columns: List of visible columns in order
+        """
+        # Store the new configuration
+        self.all_column_names = new_column_order
+        self.visible_column_names = new_visible_columns
+        
+        # Get current table data
+        row_count = self.editions_table_widget.rowCount()
+        col_count = self.editions_table_widget.columnCount()
+        
+        # Store column widths
+        column_widths = {}
+        for col in range(col_count):
+            header = self.editions_table_widget.horizontalHeaderItem(col)
+            if header:
+                col_name = header.text().replace(" ▲", "").replace(" ▼", "")
+                column_widths[col_name] = self.editions_table_widget.columnWidth(col)
+        
+        # Store all current data
+        table_data = []
+        for row in range(row_count):
+            row_data = {}
+            for col in range(col_count):
+                header = self.editions_table_widget.horizontalHeaderItem(col)
+                if header:
+                    col_name = header.text().replace(" ▲", "").replace(" ▼", "")
+                    item = self.editions_table_widget.item(row, col)
+                    if item:
+                        row_data[col_name] = item.text()
+            table_data.append(row_data)
+        
+        # Clear and reconfigure table
+        self.editions_table_widget.setColumnCount(len(new_visible_columns))
+        self.editions_table_widget.setHorizontalHeaderLabels(new_visible_columns)
+        
+        # Repopulate with reordered data
+        for row, row_data in enumerate(table_data):
+            for col, col_name in enumerate(new_visible_columns):
+                value = row_data.get(col_name, "N/A")
+                # Check if this was a numeric column
+                if col_name == "score" or col_name == "pages":
+                    try:
+                        numeric_value = float(value) if value != "N/A" else None
+                        item = NumericTableWidgetItem(value, numeric_value)
+                    except:
+                        item = QTableWidgetItem(value)
+                elif col_name == "Duration" and value != "N/A":
+                    # Preserve numeric sorting for duration
+                    # Extract seconds from HH:MM:SS format
+                    try:
+                        parts = value.split(":")
+                        if len(parts) == 3:
+                            seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+                            item = NumericTableWidgetItem(value, seconds)
+                        else:
+                            item = QTableWidgetItem(value)
+                    except:
+                        item = QTableWidgetItem(value)
+                else:
+                    item = QTableWidgetItem(value)
+                
+                self.editions_table_widget.setItem(row, col, item)
+        
+        # Restore column widths where possible
+        for col, col_name in enumerate(new_visible_columns):
+            if col_name in column_widths:
+                self.editions_table_widget.setColumnWidth(col, column_widths[col_name])
+        
+        # Update status
+        hidden_count = len(self.all_column_names) - len(self.visible_column_names)
+        if hidden_count > 0:
+            self.status_bar.showMessage(f"Column configuration applied. {hidden_count} columns hidden.", 3000)
+        else:
+            self.status_bar.showMessage("Column configuration applied.", 3000)
 
 def main():
     """
