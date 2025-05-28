@@ -35,7 +35,11 @@ class HistoryManager:
         self.history_file = os.path.join(storage_dir, 'search_history.json')
         
         # Ensure storage directory exists
-        os.makedirs(storage_dir, exist_ok=True)
+        try:
+            os.makedirs(storage_dir, exist_ok=True)
+        except (PermissionError, OSError) as e:
+            logger.error(f"Failed to create storage directory: {e}")
+            # Continue anyway - save/load operations will also fail but won't crash
         
         # In-memory cache
         self._history = []

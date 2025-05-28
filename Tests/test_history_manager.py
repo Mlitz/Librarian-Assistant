@@ -114,7 +114,7 @@ class TestHistoryManager(unittest.TestCase):
         
         # Search that matches multiple
         results = self.history_manager.search_history("the")
-        self.assertEqual(len(results), 2)  # "The Hobbit" and "Lord of the Rings"
+        self.assertEqual(len(results), 3)  # All three titles contain "the"
         
         # Empty search returns all
         results = self.history_manager.search_history("")

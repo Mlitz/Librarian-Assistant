@@ -3,9 +3,9 @@
 import sys
 from datetime import datetime
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QTabWidget, QWidget, QLineEdit, QTableWidget, QTableWidgetItem, QScrollArea,
-                             QVBoxLayout, QHBoxLayout, QLabel, QGroupBox, QPushButton, QHeaderView, QFrame, QComboBox)
-from PyQt5.QtGui import QIntValidator, QValidator
-from PyQt5.QtCore import Qt, pyqtSignal
+                             QVBoxLayout, QHBoxLayout, QLabel, QGroupBox, QPushButton, QHeaderView, QComboBox, QCheckBox)
+from PyQt5.QtGui import QIntValidator, QValidator, QColor
+from PyQt5.QtCore import Qt
 
 # Import configuration and authentication modules
 from librarian_assistant.config_manager import ConfigManager
@@ -46,13 +46,17 @@ class ClickableLabel(QLabel):
         self._default_text_color = "#e0e0e0" # Matches QWidget color in stylesheet
         self._link_text_color = "#9f7aea"    # Purple accent color to match theme
 
-    def setContent(self, prefix: str, value_part: str, url_for_value_part: str = ""):
+    def setContent(self, prefix: str, value_part: str, url_for_value_part: str = "", field_name: str = ""):
         """
         Sets the content of the label.
         - prefix: The static text part (e.g., "Slug: ").
         - value_part: The dynamic text part that might be a link (e.g., "my-book-slug" or "N/A").
         - url_for_value_part: The URL to associate with the value_part if it's linkable.
+        - field_name: Optional field identifier for N/A highlighting logic.
         """
+        from librarian_assistant.ui_utils import should_highlight_general_info_na
+        from librarian_assistant.styling_constants import get_na_highlight_html
+        
         self._url_for_link_part = url_for_value_part
         current_value_part = value_part if value_part is not None else "N/A"
         
@@ -60,6 +64,11 @@ class ClickableLabel(QLabel):
         prefix_color = "#999999"  # Medium gray for labels
 
         is_value_linkable = bool(self._url_for_link_part) and current_value_part != "N/A"
+        
+        # Check if N/A should be highlighted
+        should_highlight_na = (current_value_part == "N/A" and 
+                             field_name and 
+                             should_highlight_general_info_na(field_name))
 
         if is_value_linkable:
             # Construct HTML with styled prefix and link
@@ -75,10 +84,14 @@ class ClickableLabel(QLabel):
             self.setToolTip(f"Open: {self._url_for_link_part}")
         else:
             # Use HTML for consistent styling even for non-links
-            html_text = (
-                f"<span style='color:{prefix_color};'>{prefix}</span>"
-                f"<span style='color:{self._default_text_color};'>{current_value_part}</span>"
-            )
+            if should_highlight_na:
+                # Use highlighted N/A styling
+                value_html = get_na_highlight_html(current_value_part)
+            else:
+                # Use default styling
+                value_html = f"<span style='color:{self._default_text_color};'>{current_value_part}</span>"
+            
+            html_text = f"<span style='color:{prefix_color};'>{prefix}</span>{value_html}"
             self.setText(html_text)
             self.setCursor(Qt.ArrowCursor)
             self.setToolTip("")
@@ -127,9 +140,6 @@ class SortableTableWidget(QTableWidget):
         self.column_sort_order = {}  # column_index: Qt.SortOrder or None
         self.last_sorted_column = None
         
-        # Track expanded rows and their accordion widgets
-        self.expanded_rows = {}  # row_index: accordion_widget
-        
         # Connect header click to custom sort handler
         self.horizontalHeader().sectionClicked.connect(self._on_header_clicked)
         
@@ -141,11 +151,51 @@ class SortableTableWidget(QTableWidget):
         self.horizontalHeader().setStretchLastSection(True)  # Make last column fill remaining space
         self.horizontalHeader().setMinimumSectionSize(50)  # Minimum column width
         
-        # Connect row click for accordion
-        self.itemClicked.connect(self._on_item_clicked)
+        # Set selection behavior
+        self.setSelectionBehavior(QTableWidget.SelectRows)
+        
+        # Track checkbox states for persistence
+        self.checked_editions = set()  # Set of edition IDs that are checked
+        
+    def _toggle_all_checkboxes(self):
+        """Toggle all checkboxes in the Select column."""
+        # Count how many are currently checked
+        checked_count = 0
+        total_count = 0
+        
+        for row in range(self.rowCount()):
+            widget = self.cellWidget(row, 0)  # Select column is at index 0
+            if widget:
+                checkbox = widget.findChild(QCheckBox)
+                if checkbox:
+                    total_count += 1
+                    if checkbox.isChecked():
+                        checked_count += 1
+        
+        # If all or some are checked, uncheck all. If none are checked, check all.
+        new_state = checked_count == 0
+        
+        # Update all checkboxes
+        for row in range(self.rowCount()):
+            widget = self.cellWidget(row, 0)
+            if widget:
+                checkbox = widget.findChild(QCheckBox)
+                if checkbox:
+                    checkbox.setChecked(new_state)
+                    
+        # Trigger main window update
+        if hasattr(self, 'parent') and self.parent():
+            self.parent()._update_book_mappings_tab()
         
     def _on_header_clicked(self, logical_index):
         """Handle header click to cycle through sort states."""
+        # Check if this is the Select column (index 0)
+        header_item = self.horizontalHeaderItem(logical_index)
+        if header_item and header_item.text().replace(" ▲", "").replace(" ▼", "") == "Select":
+            # Toggle all checkboxes
+            self._toggle_all_checkboxes()
+            return
+            
         # Get current sort order for this column
         current_order = self.column_sort_order.get(logical_index)
         
@@ -213,136 +263,96 @@ class SortableTableWidget(QTableWidget):
         self.column_sort_order.clear()
         self.last_sorted_column = None
     
-    def _on_item_clicked(self, item):
-        """Handle item click to toggle row accordion."""
-        if not item:
-            return
+    def sortItems(self, column, order):
+        """Override sortItems to preserve checkbox states."""
+        # Store checkbox states before sorting
+        checkbox_states = {}  # edition_id -> checked state
+        
+        for row in range(self.rowCount()):
+            # Get checkbox state
+            widget = self.cellWidget(row, 0)  # Select column is at index 0
+            if widget:
+                checkbox = widget.findChild(QCheckBox)
+                if checkbox:
+                    # Get edition ID for this row
+                    edition_id = self._get_edition_id_for_row(row)
+                    if edition_id:
+                        checkbox_states[edition_id] = checkbox.isChecked()
+        
+        # Perform the sort
+        super().sortItems(column, order)
+        
+        # Restore checkbox states after sorting
+        for row in range(self.rowCount()):
+            edition_id = self._get_edition_id_for_row(row)
+            if edition_id in checkbox_states:
+                widget = self.cellWidget(row, 0)
+                if widget:
+                    checkbox = widget.findChild(QCheckBox)
+                    if checkbox:
+                        checkbox.setChecked(checkbox_states[edition_id])
+    
+    
+    def _get_edition_id_for_row(self, visual_row):
+        """Get the edition ID for a visual row."""
+        logger.info(f"_get_edition_id_for_row: visual_row={visual_row}, columnCount={self.columnCount()}")
+        
+        # Check if we have columns
+        if self.columnCount() == 0:
+            logger.error("No columns in table!")
+            return None
+        
+        # First, try to find the ID column - it might not be at index 0 if columns were reordered
+        id_col_index = None
+        for col in range(self.columnCount()):
+            header_item = self.horizontalHeaderItem(col)
+            if header_item:
+                header_text = header_item.text().replace(" ▲", "").replace(" ▼", "")
+                if header_text == "id":
+                    id_col_index = col
+                    logger.info(f"Found ID column at index {col}")
+                    break
+        
+        if id_col_index is None:
+            logger.warning("ID column not found in table headers!")
+            # Fallback: use row number as a string ID
+            fallback_id = f"row_{visual_row}"
+            logger.info(f"Using fallback ID: {fallback_id}")
+            return fallback_id
             
-        row = item.row()
-        self.toggle_row_accordion(row)
-    
-    def toggle_row_accordion(self, row):
-        """Toggle the accordion for a specific row."""
-        if row in self.expanded_rows:
-            # Collapse the row
-            self._collapse_row(row)
-        else:
-            # Expand the row
-            self._expand_row(row)
-    
-    def _expand_row(self, row):
-        """Expand a row to show accordion content."""
-        # Get the book_mappings data for this row
-        book_mappings = self.get_row_book_mappings(row)
-        if not book_mappings:
-            return
+        # Check the ID column for the edition ID
+        widget = self.cellWidget(visual_row, id_col_index)
+        logger.info(f"Widget at row {visual_row}, col {id_col_index}: {widget}")
+        
+        if widget:
+            # For ClickableLabel, we need to extract the ID from the link text
+            if hasattr(widget, 'text'):
+                text = widget.text()
+                logger.info(f"Widget text: {text}")
+                # Extract ID from the HTML if it's a ClickableLabel
+                if '<a href=' in text:
+                    # Parse the ID from the link
+                    import re
+                    match = re.search(r'>([^<]+)</a>', text)
+                    if match:
+                        edition_id = match.group(1)
+                        logger.info(f"Extracted edition ID from link: {edition_id}")
+                        return edition_id
+                return text
+        
+        # Try regular item
+        item = self.item(visual_row, id_col_index)
+        if item:
+            edition_id = item.text()
+            logger.info(f"Got edition ID from item: {edition_id}")
+            return edition_id
             
-        # Create accordion widget
-        accordion_widget = self._create_accordion_widget(book_mappings)
-        
-        # Insert the accordion below the row
-        self.insertRow(row + 1)
-        self.setSpan(row + 1, 0, 1, self.columnCount())
-        self.setCellWidget(row + 1, 0, accordion_widget)
-        
-        # Track the expanded row
-        self.expanded_rows[row] = row + 1  # Store the accordion row index
-        
-        # Adjust row heights
-        self.resizeRowToContents(row + 1)
+        logger.warning(f"Could not find edition ID for row {visual_row}")
+        # Fallback: use row number as ID
+        fallback_id = f"row_{visual_row}"
+        logger.info(f"Using fallback ID: {fallback_id}")
+        return fallback_id
     
-    def _collapse_row(self, row):
-        """Collapse an expanded row."""
-        if row not in self.expanded_rows:
-            return
-            
-        accordion_row = self.expanded_rows[row]
-        
-        # Remove the accordion row
-        self.removeRow(accordion_row)
-        
-        # Update tracking for rows that shifted
-        del self.expanded_rows[row]
-        
-        # Update indices for expanded rows below this one
-        updated_expanded = {}
-        for exp_row, acc_row in self.expanded_rows.items():
-            if exp_row > row:
-                updated_expanded[exp_row - 1] = acc_row - 1
-            else:
-                updated_expanded[exp_row] = acc_row if acc_row < accordion_row else acc_row - 1
-        self.expanded_rows = updated_expanded
-    
-    def _create_accordion_widget(self, book_mappings):
-        """Create the accordion widget displaying book mappings."""
-        from PyQt5.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout
-        
-        frame = QFrame()
-        frame.setFrameStyle(QFrame.Box)
-        frame.setStyleSheet("""
-            QFrame {
-                background-color: #2a2a2a;
-                border: 1px solid #3a3a3a;
-                padding: 10px;
-                margin: 5px;
-            }
-        """)
-        
-        layout = QVBoxLayout(frame)
-        
-        # Title
-        title_label = QLabel("<b>Book Mappings:</b>")
-        layout.addWidget(title_label)
-        
-        # Platform mappings
-        for mapping in book_mappings:
-            platform_name = mapping.get('platform', {}).get('name', 'Unknown')
-            external_id = mapping.get('external_id', '')
-            
-            # Create clickable link based on platform
-            link_url = self._get_platform_url(platform_name, external_id)
-            
-            if link_url:
-                # Create clickable label
-                mapping_label = ClickableLabel()
-                mapping_label.setContent(f"{platform_name}: ", external_id, link_url)
-                mapping_label.linkActivated.connect(lambda url: webbrowser.open(url))
-            else:
-                # Non-clickable label for unsupported platforms
-                mapping_label = QLabel(f"{platform_name}: {external_id}")
-                logger.warning(f"Unsupported platform in book_mappings: {platform_name}")
-            
-            layout.addWidget(mapping_label)
-        
-        return frame
-    
-    def _get_platform_url(self, platform_name, external_id):
-        """Get the URL for a platform based on its name and external ID."""
-        platform_lower = platform_name.lower()
-        
-        # URL patterns for supported platforms
-        platform_urls = {
-            'goodreads': f'https://www.goodreads.com/book/show/{external_id}',
-            'librarything': f'https://www.librarything.com/work/{external_id}',  # May need adjustment
-            'openlibrary': f'https://openlibrary.org{external_id}' if external_id.startswith('/books/') else f'https://openlibrary.org/books/{external_id}',
-            'google': f'https://books.google.com/books?id={external_id}',
-            'google books': f'https://books.google.com/books?id={external_id}',
-            'storygraph': f'https://app.thestorygraph.com/books/{external_id}',  # May need adjustment
-            'inventaire': f'https://inventaire.io/entity/{external_id}',  # May need adjustment
-            'abebooks': external_id if external_id.startswith('http') else None,  # Often an image URL
-        }
-        
-        return platform_urls.get(platform_lower)
-    
-    def get_row_book_mappings(self, row):
-        """Get book_mappings data for a specific row. This should be overridden by the main window."""
-        # This will be overridden in MainWindow to provide actual data
-        return []
-    
-    def setRowCount(self, rows):
-        """Override to clear expanded rows when resetting table."""
-        super().setRowCount(rows)
-        self.expanded_rows.clear()
 
 
 class EditionsTableWidget(SortableTableWidget):
@@ -355,9 +365,71 @@ class EditionsTableWidget(SortableTableWidget):
     
     def get_row_book_mappings(self, row):
         """Get book_mappings data for a specific row."""
+        logger.info(f"get_row_book_mappings called with row={row}, editions_data length={len(self.main_window.editions_data)}")
         if 0 <= row < len(self.main_window.editions_data):
             edition_data = self.main_window.editions_data[row]
-            return edition_data.get('book_mappings', [])
+            book_mappings = edition_data.get('book_mappings', [])
+            logger.info(f"Found {len(book_mappings)} book mappings for data row {row}")
+            return book_mappings
+        logger.warning(f"Row {row} out of range for editions_data")
+        return []
+    
+    def get_book_mappings_by_edition_id(self, edition_id):
+        """Get book_mappings data for a specific edition ID."""
+        logger.info(f"get_book_mappings_by_edition_id called with edition_id={edition_id}")
+        
+        # Handle fallback row IDs
+        if edition_id and edition_id.startswith("row_"):
+            try:
+                row_index = int(edition_id.split("_")[1])
+                logger.info(f"Using fallback row index: {row_index}")
+                
+                # When using fallback, we need to get the data from the actual row
+                # First try to get the stored data index from the score column
+                
+                # Find the score column
+                score_col = None
+                for col in range(self.columnCount()):
+                    header = self.horizontalHeaderItem(col)
+                    if header and header.text().replace(" ▲", "").replace(" ▼", "") == "score":
+                        score_col = col
+                        break
+                
+                if score_col is not None:
+                    score_item = self.item(row_index, score_col)
+                    if score_item:
+                        # Get the stored data index
+                        stored_data_index = score_item.data(Qt.UserRole + 1)
+                        if stored_data_index is not None:
+                            logger.info(f"Found stored data index {stored_data_index} for row {row_index}")
+                            if 0 <= stored_data_index < len(self.main_window.editions_data):
+                                edition_data = self.main_window.editions_data[stored_data_index]
+                                book_mappings = edition_data.get('book_mappings', [])
+                                logger.info(f"Found {len(book_mappings)} book mappings for stored data index {stored_data_index}")
+                                return book_mappings
+                        
+                        # Fallback to score matching if no stored index
+                        score_text = score_item.text()
+                        logger.info(f"No stored index, trying score match: {score_text}")
+                        
+                        for idx, edition_data in enumerate(self.main_window.editions_data):
+                            if str(edition_data.get('score', '')) == score_text:
+                                book_mappings = edition_data.get('book_mappings', [])
+                                logger.info(f"Found edition by score match at index {idx}: {len(book_mappings)} book mappings")
+                                return book_mappings
+                
+                logger.warning(f"Could not find book mappings for row {row_index}")
+            except (ValueError, IndexError) as e:
+                logger.error(f"Error parsing fallback row ID: {e}")
+        
+        # Try normal ID lookup
+        for edition_data in self.main_window.editions_data:
+            if str(edition_data.get('id', '')) == str(edition_id):
+                book_mappings = edition_data.get('book_mappings', [])
+                logger.info(f"Found {len(book_mappings)} book mappings for edition ID {edition_id}")
+                return book_mappings
+                
+        logger.warning(f"Edition ID {edition_id} not found in editions_data")
         return []
 
 
@@ -378,7 +450,7 @@ class MainWindow(QMainWindow):
         self.visible_column_names = []  # Currently visible columns
         self.column_order_map = {}  # Maps display position to actual column index
         
-        # Edition data storage for accordion
+        # Edition data storage
         self.editions_data = []  # Store full edition data for each row
         
         # Filter tracking
@@ -455,7 +527,7 @@ class MainWindow(QMainWindow):
 
         self.book_slug_label = ClickableLabel(self) # Pass parent
         self.book_slug_label.setObjectName("bookSlugLabel")
-        self.book_slug_label.setContent("Slug: ", "Not Fetched", "")
+        self.book_slug_label.setContent("Slug: ", "Not Fetched", "", field_name='slug')
         self.info_layout.addWidget(self.book_slug_label)
         self.book_slug_label.linkActivated.connect(self._open_web_link)
 
@@ -492,25 +564,25 @@ class MainWindow(QMainWindow):
 
         self.default_audio_label = ClickableLabel(self)
         self.default_audio_label.setObjectName("defaultAudioLabel")
-        self.default_audio_label.setContent("Default Audio Edition: ", "N/A", "")
+        self.default_audio_label.setContent("Default Audio Edition: ", "N/A", "", field_name='default_audio_edition')
         default_editions_layout_init.addWidget(self.default_audio_label)
         self.default_audio_label.linkActivated.connect(self._open_web_link)
 
         self.default_cover_label_info = ClickableLabel(self)
         self.default_cover_label_info.setObjectName("defaultCoverLabelInfo")
-        self.default_cover_label_info.setContent("Default Cover Edition: ", "N/A", "")
+        self.default_cover_label_info.setContent("Default Cover Edition: ", "N/A", "", field_name='default_cover_edition')
         default_editions_layout_init.addWidget(self.default_cover_label_info)
         self.default_cover_label_info.linkActivated.connect(self._open_web_link)
 
         self.default_ebook_label = ClickableLabel(self)
         self.default_ebook_label.setObjectName("defaultEbookLabel")
-        self.default_ebook_label.setContent("Default E-book Edition: ", "N/A", "")
+        self.default_ebook_label.setContent("Default E-book Edition: ", "N/A", "", field_name='default_ebook_edition')
         default_editions_layout_init.addWidget(self.default_ebook_label)
         self.default_ebook_label.linkActivated.connect(self._open_web_link)
 
         self.default_physical_label = ClickableLabel(self)
         self.default_physical_label.setObjectName("defaultPhysicalLabel")
-        self.default_physical_label.setContent("Default Physical Edition: ", "N/A", "")
+        self.default_physical_label.setContent("Default Physical Edition: ", "N/A", "", field_name='default_physical_edition')
         default_editions_layout_init.addWidget(self.default_physical_label)
         self.default_physical_label.linkActivated.connect(self._open_web_link)
         self.info_layout.addWidget(self.default_editions_group_box)
@@ -600,6 +672,22 @@ class MainWindow(QMainWindow):
         history_layout.addWidget(history_instructions)
         
         self.tab_widget.addTab(self.history_tab_content, "History")
+        
+        # Book Mappings Tab
+        self.book_mappings_scroll = QScrollArea()
+        self.book_mappings_scroll.setWidgetResizable(True)
+        self.book_mappings_content = QWidget()
+        self.book_mappings_layout = QVBoxLayout(self.book_mappings_content)
+        self.book_mappings_layout.setAlignment(Qt.AlignTop)
+        self.book_mappings_scroll.setWidget(self.book_mappings_content)
+        
+        # Add placeholder text
+        self.book_mappings_placeholder = QLabel("Select editions from the Main View tab to display their book mappings here.")
+        self.book_mappings_placeholder.setStyleSheet("color: #888; font-style: italic; margin: 20px;")
+        self.book_mappings_placeholder.setAlignment(Qt.AlignCenter)
+        self.book_mappings_layout.addWidget(self.book_mappings_placeholder)
+        
+        self.tab_widget.addTab(self.book_mappings_scroll, "Book Mappings")
 
         self.status_bar = self.statusBar()
         self.status_bar.showMessage("Ready")
@@ -712,7 +800,8 @@ class MainWindow(QMainWindow):
                 # Title
                 self.book_title_label = QLabel()
                 self.book_title_label.setTextFormat(Qt.RichText)
-                self.book_title_label.setText(self._format_label_text("Title: ", book_data.get('title', 'N/A')))
+                title_value = book_data.get('title', 'N/A')
+                self.book_title_label.setText(self._format_label_text_with_na_highlight("Title: ", title_value, 'title'))
                 self.book_title_label.setObjectName("bookTitleLabel")
                 self.info_layout.addWidget(self.book_title_label)
 
@@ -721,14 +810,14 @@ class MainWindow(QMainWindow):
                 slug_url_val = f"https://hardcover.app/books/{slug_text}" if slug_text else ""
                 self.book_slug_label = ClickableLabel(self) # Re-create after clear
                 self.book_slug_label.setObjectName("bookSlugLabel")
-                self.book_slug_label.setContent("Slug: ", slug_text if slug_text else "N/A", slug_url_val)
+                self.book_slug_label.setContent("Slug: ", slug_text if slug_text else "N/A", slug_url_val, field_name='slug')
                 self.book_slug_label.linkActivated.connect(self._open_web_link)
                 self.info_layout.addWidget(self.book_slug_label)
 
                 # Book ID
                 self.book_id_queried_label = QLabel()
                 self.book_id_queried_label.setTextFormat(Qt.RichText)
-                self.book_id_queried_label.setText(self._format_label_text("Book ID (Queried): ", str(book_id_int)))
+                self.book_id_queried_label.setText(self._format_label_text_with_na_highlight("Book ID (Queried): ", str(book_id_int), 'book_id'))
                 self.book_id_queried_label.setObjectName("bookIdQueriedLabel")
                 self.info_layout.addWidget(self.book_id_queried_label)
 
@@ -750,7 +839,7 @@ class MainWindow(QMainWindow):
 
                 self.book_authors_label = QLabel()
                 self.book_authors_label.setTextFormat(Qt.RichText)
-                self.book_authors_label.setText(self._format_label_text("Authors: ", authors_display_text))
+                self.book_authors_label.setText(self._format_label_text_with_na_highlight("Authors: ", authors_display_text, 'authors'))
                 self.book_authors_label.setObjectName("bookAuthorsLabel") # Keep object name for consistency/testing
                 self.info_layout.addWidget(self.book_authors_label)
                 
@@ -759,7 +848,7 @@ class MainWindow(QMainWindow):
                 editions_count_val = str(editions_count_raw) if editions_count_raw is not None else 'N/A'
                 self.book_total_editions_label = QLabel()
                 self.book_total_editions_label.setTextFormat(Qt.RichText)
-                self.book_total_editions_label.setText(self._format_label_text("Total Editions: ", editions_count_val))
+                self.book_total_editions_label.setText(self._format_label_text_with_na_highlight("Total Editions: ", editions_count_val, 'total_editions'))
                 self.book_total_editions_label.setObjectName("bookTotalEditionsLabel")
                 self.info_layout.addWidget(self.book_total_editions_label)
 
@@ -778,7 +867,7 @@ class MainWindow(QMainWindow):
                 
                 self.book_description_label = QLabel()
                 self.book_description_label.setTextFormat(Qt.RichText)
-                self.book_description_label.setText(self._format_label_text("Description: ", display_desc_text))
+                self.book_description_label.setText(self._format_label_text_with_na_highlight("Description: ", display_desc_text, 'description'))
                 self.book_description_label.setObjectName("bookDescriptionLabel")
                 self.book_description_label.setWordWrap(True)
                 if tooltip_desc_text: # Only set tooltip if it was truncated
@@ -804,28 +893,28 @@ class MainWindow(QMainWindow):
                 audio_prefix, audio_value_part, audio_url = get_default_edition_parts(book_data.get('default_audio_edition'), "Default Audio Edition")
                 self.default_audio_label = ClickableLabel(self)
                 self.default_audio_label.setObjectName("defaultAudioLabel")
-                self.default_audio_label.setContent(audio_prefix, audio_value_part, audio_url)
+                self.default_audio_label.setContent(audio_prefix, audio_value_part, audio_url, field_name='default_audio_edition')
                 self.default_audio_label.linkActivated.connect(self._open_web_link)
                 default_editions_layout_dyn.addWidget(self.default_audio_label)
 
                 cover_prefix, cover_value_part, cover_url_link = get_default_edition_parts(book_data.get('default_cover_edition'), "Default Cover Edition")
                 self.default_cover_label_info = ClickableLabel(self)
                 self.default_cover_label_info.setObjectName("defaultCoverLabelInfo")
-                self.default_cover_label_info.setContent(cover_prefix, cover_value_part, cover_url_link)
+                self.default_cover_label_info.setContent(cover_prefix, cover_value_part, cover_url_link, field_name='default_cover_edition')
                 self.default_cover_label_info.linkActivated.connect(self._open_web_link)
                 default_editions_layout_dyn.addWidget(self.default_cover_label_info)
 
                 ebook_prefix, ebook_value_part, ebook_url = get_default_edition_parts(book_data.get('default_ebook_edition'), "Default E-book Edition")
                 self.default_ebook_label = ClickableLabel(self)
                 self.default_ebook_label.setObjectName("defaultEbookLabel")
-                self.default_ebook_label.setContent(ebook_prefix, ebook_value_part, ebook_url)
+                self.default_ebook_label.setContent(ebook_prefix, ebook_value_part, ebook_url, field_name='default_ebook_edition')
                 self.default_ebook_label.linkActivated.connect(self._open_web_link)
                 default_editions_layout_dyn.addWidget(self.default_ebook_label)
 
                 physical_prefix, physical_value_part, physical_url = get_default_edition_parts(book_data.get('default_physical_edition'), "Default Physical Edition")
                 self.default_physical_label = ClickableLabel(self)
                 self.default_physical_label.setObjectName("defaultPhysicalLabel")
-                self.default_physical_label.setContent(physical_prefix, physical_value_part, physical_url)
+                self.default_physical_label.setContent(physical_prefix, physical_value_part, physical_url, field_name='default_physical_edition')
                 self.default_physical_label.linkActivated.connect(self._open_web_link)
                 default_editions_layout_dyn.addWidget(self.default_physical_label)
 
@@ -841,7 +930,7 @@ class MainWindow(QMainWindow):
 
                 self.book_cover_label = QLabel()
                 self.book_cover_label.setTextFormat(Qt.RichText)
-                self.book_cover_label.setText(self._format_label_text("Cover URL: ", cover_url))
+                self.book_cover_label.setText(self._format_label_text_with_na_highlight("Cover URL: ", cover_url, 'cover_url'))
                 self.book_cover_label.setObjectName("bookCoverLabel") # Keep object name
                 self.info_layout.addWidget(self.book_cover_label)
 
@@ -870,7 +959,7 @@ class MainWindow(QMainWindow):
                     
                     # Define static headers according to spec.md section 2.4.1
                     static_headers = [
-                        "id", "score", "title", "subtitle", "Cover Image?", 
+                        "Select", "id", "score", "title", "subtitle", "Cover Image?", 
                         "isbn_10", "isbn_13", "asin", "Reading Format", "pages", 
                         "Duration", "edition_format", "edition_information", 
                         "release_date", "Publisher", "Language", "Country"
@@ -905,8 +994,33 @@ class MainWindow(QMainWindow):
                     for row, edition_data in enumerate(editions):
                         col = 0
                         
-                        # id
-                        self.editions_table_widget.setItem(row, col, QTableWidgetItem(str(edition_data.get('id', 'N/A'))))
+                        # Select checkbox
+                        checkbox = QCheckBox()
+                        checkbox.setStyleSheet("QCheckBox { margin-left: 8px; }")
+                        checkbox_widget = QWidget()
+                        checkbox_layout = QHBoxLayout(checkbox_widget)
+                        checkbox_layout.addWidget(checkbox)
+                        checkbox_layout.setContentsMargins(0, 0, 0, 0)
+                        checkbox_layout.setAlignment(Qt.AlignCenter)
+                        
+                        # Connect checkbox to handler
+                        checkbox.stateChanged.connect(lambda state, ed_id=edition_data.get('id', f'row_{row}'): 
+                                                     self._on_edition_checkbox_changed(ed_id, state))
+                        
+                        self.editions_table_widget.setCellWidget(row, col, checkbox_widget)
+                        col += 1
+                        
+                        # id (make clickable to edition edit page)
+                        edition_id = edition_data.get('id', 'N/A')
+                        if edition_id != 'N/A':
+                            edition_url = f"https://hardcover.app/editions/{edition_id}/edit"
+                            id_label = ClickableLabel()
+                            id_label.setContent("", str(edition_id), edition_url)
+                            id_label.linkActivated.connect(self._open_web_link)
+                            self.editions_table_widget.setCellWidget(row, col, id_label)
+                        else:
+                            self.editions_table_widget.setItem(row, col, QTableWidgetItem(str(edition_id)))
+                        
                         col += 1
                         
                         # score
@@ -914,7 +1028,10 @@ class MainWindow(QMainWindow):
                         if score_value is not None:
                             score_item = NumericTableWidgetItem(str(score_value), score_value)
                         else:
-                            score_item = QTableWidgetItem('N/A')
+                            score_item = self._create_table_item_with_na_highlight('N/A', 'score', edition_data)
+                        # Store the original data index AND the book_mappings with this item
+                        score_item.setData(Qt.UserRole + 1, row)  # row is the index in editions_data
+                        score_item.setData(Qt.UserRole + 2, edition_data.get('book_mappings', []))  # Store mappings directly
                         self.editions_table_widget.setItem(row, col, score_item)
                         col += 1
                         
@@ -925,7 +1042,13 @@ class MainWindow(QMainWindow):
                         
                         # subtitle (may be long, use truncation)
                         subtitle = edition_data.get('subtitle')
-                        subtitle_item = self._create_table_item_with_tooltip(subtitle if subtitle else 'N/A')
+                        if subtitle:
+                            subtitle_item = self._create_table_item_with_tooltip(subtitle)
+                        else:
+                            subtitle_item = self._create_table_item_with_na_highlight('N/A', 'subtitle', edition_data)
+                            # For long fields, preserve tooltip functionality
+                            if len('N/A') > 50:  # Won't happen but keep pattern
+                                subtitle_item.setToolTip('N/A')
                         self.editions_table_widget.setItem(row, col, subtitle_item)
                         col += 1
                         
@@ -937,23 +1060,35 @@ class MainWindow(QMainWindow):
                         
                         # isbn_10
                         isbn_10 = edition_data.get('isbn_10')
-                        self.editions_table_widget.setItem(row, col, QTableWidgetItem(isbn_10 if isbn_10 else 'N/A'))
+                        if isbn_10:
+                            isbn_10_item = QTableWidgetItem(isbn_10)
+                        else:
+                            isbn_10_item = self._create_table_item_with_na_highlight('N/A', 'isbn_10', edition_data)
+                        self.editions_table_widget.setItem(row, col, isbn_10_item)
                         col += 1
                         
                         # isbn_13
                         isbn_13 = edition_data.get('isbn_13')
-                        self.editions_table_widget.setItem(row, col, QTableWidgetItem(isbn_13 if isbn_13 else 'N/A'))
+                        if isbn_13:
+                            isbn_13_item = QTableWidgetItem(isbn_13)
+                        else:
+                            isbn_13_item = self._create_table_item_with_na_highlight('N/A', 'isbn_13', edition_data)
+                        self.editions_table_widget.setItem(row, col, isbn_13_item)
                         col += 1
                         
                         # asin
                         asin = edition_data.get('asin')
-                        self.editions_table_widget.setItem(row, col, QTableWidgetItem(asin if asin else 'N/A'))
+                        if asin:
+                            asin_item = QTableWidgetItem(asin)
+                        else:
+                            asin_item = self._create_table_item_with_na_highlight('N/A', 'asin', edition_data)
+                        self.editions_table_widget.setItem(row, col, asin_item)
                         col += 1
                         
                         # Reading Format (transform reading_format_id)
                         reading_format_id = edition_data.get('reading_format_id')
                         reading_format_map = {1: "Physical Book", 2: "Audiobook", 4: "E-Book"}
-                        reading_format = reading_format_map.get(reading_format_id, f"N/A" if reading_format_id is None else str(reading_format_id))
+                        reading_format = reading_format_map.get(reading_format_id, "N/A" if reading_format_id is None else str(reading_format_id))
                         self.editions_table_widget.setItem(row, col, QTableWidgetItem(reading_format))
                         col += 1
                         
@@ -962,7 +1097,7 @@ class MainWindow(QMainWindow):
                         if pages_value is not None:
                             pages_item = NumericTableWidgetItem(str(pages_value), pages_value)
                         else:
-                            pages_item = QTableWidgetItem('N/A')
+                            pages_item = self._create_table_item_with_na_highlight('N/A', 'pages', edition_data)
                         self.editions_table_widget.setItem(row, col, pages_item)
                         col += 1
                         
@@ -975,17 +1110,28 @@ class MainWindow(QMainWindow):
                             duration_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
                             duration_item = NumericTableWidgetItem(duration_str, audio_seconds)
                         else:
-                            duration_item = QTableWidgetItem("N/A")
+                            duration_item = self._create_table_item_with_na_highlight("N/A", 'duration', edition_data)
                         self.editions_table_widget.setItem(row, col, duration_item)
                         col += 1
                         
                         # edition_format
                         edition_format = edition_data.get('edition_format')
-                        self.editions_table_widget.setItem(row, col, QTableWidgetItem(edition_format if edition_format else 'N/A'))
+                        if edition_format:
+                            edition_format_item = QTableWidgetItem(edition_format)
+                        else:
+                            edition_format_item = self._create_table_item_with_na_highlight('N/A', 'edition_format', edition_data)
+                        self.editions_table_widget.setItem(row, col, edition_format_item)
                         col += 1
                         
                         # edition_information (may be long, use truncation)
-                        edition_info_item = self._create_table_item_with_tooltip(edition_data.get('edition_information', 'N/A'))
+                        edition_info = edition_data.get('edition_information')
+                        if edition_info:
+                            edition_info_item = self._create_table_item_with_tooltip(edition_info)
+                        else:
+                            edition_info_item = self._create_table_item_with_na_highlight('N/A', 'edition_information', edition_data)
+                            # For long fields, preserve tooltip functionality
+                            if len('N/A') > 50:  # Won't happen but keep pattern
+                                edition_info_item.setToolTip('N/A')
                         self.editions_table_widget.setItem(row, col, edition_info_item)
                         col += 1
                         
@@ -996,26 +1142,39 @@ class MainWindow(QMainWindow):
                                 # Assuming format is YYYY-MM-DD from API
                                 date_obj = datetime.strptime(release_date, '%Y-%m-%d')
                                 formatted_date = date_obj.strftime('%m/%d/%Y')
-                            except:
+                            except (ValueError, TypeError):
                                 formatted_date = release_date  # Use as-is if parsing fails
+                            release_date_item = QTableWidgetItem(formatted_date)
                         else:
-                            formatted_date = "N/A"
-                        self.editions_table_widget.setItem(row, col, QTableWidgetItem(formatted_date))
+                            release_date_item = self._create_table_item_with_na_highlight("N/A", 'release_date', edition_data)
+                        self.editions_table_widget.setItem(row, col, release_date_item)
                         col += 1
                         
                         # Publisher
                         publisher_name = edition_data.get('publisher', {}).get('name', 'N/A') if edition_data.get('publisher') else 'N/A'
-                        self.editions_table_widget.setItem(row, col, QTableWidgetItem(publisher_name))
+                        if publisher_name != 'N/A':
+                            publisher_item = QTableWidgetItem(publisher_name)
+                        else:
+                            publisher_item = self._create_table_item_with_na_highlight('N/A', 'publisher', edition_data)
+                        self.editions_table_widget.setItem(row, col, publisher_item)
                         col += 1
                         
                         # Language
                         language_name = edition_data.get('language', {}).get('language', 'N/A') if edition_data.get('language') else 'N/A'
-                        self.editions_table_widget.setItem(row, col, QTableWidgetItem(language_name))
+                        if language_name != 'N/A':
+                            language_item = QTableWidgetItem(language_name)
+                        else:
+                            language_item = self._create_table_item_with_na_highlight('N/A', 'language', edition_data)
+                        self.editions_table_widget.setItem(row, col, language_item)
                         col += 1
                         
                         # Country
                         country_name = edition_data.get('country', {}).get('name', 'N/A') if edition_data.get('country') else 'N/A'
-                        self.editions_table_widget.setItem(row, col, QTableWidgetItem(country_name))
+                        if country_name != 'N/A':
+                            country_item = QTableWidgetItem(country_name)
+                        else:
+                            country_item = self._create_table_item_with_na_highlight('N/A', 'country', edition_data)
+                        self.editions_table_widget.setItem(row, col, country_item)
                         col += 1
                         
                         # Populate contributor columns
@@ -1233,6 +1392,61 @@ class MainWindow(QMainWindow):
         """Format label text with dimmed label and prominent value."""
         return f"<span style='color:#999999;'>{label}</span><span style='color:#e0e0e0;'>{value}</span>"
     
+    def _format_label_text_with_na_highlight(self, label: str, value: str, field_name: str) -> str:
+        """
+        Format label text with N/A highlighting when appropriate.
+        
+        Args:
+            label: The label text (e.g., "Title: ")
+            value: The value to display
+            field_name: The field identifier for N/A applicability checking
+            
+        Returns:
+            HTML-formatted string with appropriate styling
+        """
+        from librarian_assistant.ui_utils import should_highlight_general_info_na
+        from librarian_assistant.styling_constants import get_na_highlight_html
+        
+        # Check if this is an N/A value that should be highlighted
+        if value == "N/A" and should_highlight_general_info_na(field_name):
+            # Use highlighted N/A
+            value_html = get_na_highlight_html(value)
+        else:
+            # Use normal styling
+            value_html = f"<span style='color:#e0e0e0;'>{value}</span>"
+        
+        return f"<span style='color:#999999;'>{label}</span>{value_html}"
+    
+    def _create_table_item_with_na_highlight(self, text: str, field_name: str, edition_context: dict = None) -> QTableWidgetItem:
+        """
+        Create a QTableWidgetItem with N/A highlighting when appropriate.
+        
+        Args:
+            text: The text to display in the cell
+            field_name: The field identifier for N/A applicability checking
+            edition_context: The edition data for context-aware decisions (optional)
+            
+        Returns:
+            QTableWidgetItem with appropriate styling
+        """
+        from librarian_assistant.ui_utils import is_na_highlightable
+        from librarian_assistant.styling_constants import N_A_HIGHLIGHT_TEXT_COLOR_HEX, N_A_HIGHLIGHT_BG_COLOR_HEX
+        
+        item = QTableWidgetItem(text)
+        
+        # Apply N/A highlighting if appropriate
+        if text == "N/A" and is_na_highlightable(field_name, edition_context):
+            # Set text color and background color for highlighting
+            item.setForeground(QColor(N_A_HIGHLIGHT_TEXT_COLOR_HEX))
+            item.setBackground(QColor(N_A_HIGHLIGHT_BG_COLOR_HEX))
+            
+            # Set italic font
+            font = item.font()
+            font.setItalic(True)
+            item.setFont(font)
+        
+        return item
+    
     def _clear_layout(self, layout: QVBoxLayout | None):
         """
         Removes all widgets from the given layout.
@@ -1290,10 +1504,19 @@ class MainWindow(QMainWindow):
                 col_name = header.text().replace(" ▲", "").replace(" ▼", "")
                 column_widths[col_name] = self.editions_table_widget.columnWidth(col)
         
-        # Store all current data
+        # Store all current data including checkbox states
         table_data = []
+        checkbox_states = {}  # row -> checked state
+        
         for row in range(row_count):
             row_data = {}
+            # Check if this row has a checkbox
+            select_widget = self.editions_table_widget.cellWidget(row, 0)  # Select column is at index 0
+            if select_widget:
+                checkbox = select_widget.findChild(QCheckBox)
+                if checkbox:
+                    checkbox_states[row] = checkbox.isChecked()
+            
             for col in range(col_count):
                 header = self.editions_table_widget.horizontalHeaderItem(col)
                 if header:
@@ -1310,30 +1533,56 @@ class MainWindow(QMainWindow):
         # Repopulate with reordered data
         for row, row_data in enumerate(table_data):
             for col, col_name in enumerate(new_visible_columns):
-                value = row_data.get(col_name, "N/A")
-                # Check if this was a numeric column
-                if col_name == "score" or col_name == "pages":
-                    try:
-                        numeric_value = float(value) if value != "N/A" else None
-                        item = NumericTableWidgetItem(value, numeric_value)
-                    except:
-                        item = QTableWidgetItem(value)
-                elif col_name == "Duration" and value != "N/A":
-                    # Preserve numeric sorting for duration
-                    # Extract seconds from HH:MM:SS format
-                    try:
-                        parts = value.split(":")
-                        if len(parts) == 3:
-                            seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
-                            item = NumericTableWidgetItem(value, seconds)
-                        else:
-                            item = QTableWidgetItem(value)
-                    except:
-                        item = QTableWidgetItem(value)
+                if col_name == "Select":
+                    # Recreate checkbox widget
+                    checkbox = QCheckBox()
+                    checkbox.setStyleSheet("QCheckBox { margin-left: 8px; }")
+                    checkbox_widget = QWidget()
+                    checkbox_layout = QHBoxLayout(checkbox_widget)
+                    checkbox_layout.addWidget(checkbox)
+                    checkbox_layout.setContentsMargins(0, 0, 0, 0)
+                    checkbox_layout.setAlignment(Qt.AlignCenter)
+                    
+                    # Restore checkbox state
+                    if row in checkbox_states:
+                        checkbox.setChecked(checkbox_states[row])
+                    
+                    # Get edition ID for this row
+                    edition_id = None
+                    if row < len(self.editions_data):
+                        edition_id = self.editions_data[row].get('id', f'row_{row}')
+                    
+                    # Connect checkbox to handler
+                    if edition_id:
+                        checkbox.stateChanged.connect(lambda state, ed_id=edition_id: 
+                                                     self._on_edition_checkbox_changed(ed_id, state))
+                    
+                    self.editions_table_widget.setCellWidget(row, col, checkbox_widget)
                 else:
-                    item = QTableWidgetItem(value)
-                
-                self.editions_table_widget.setItem(row, col, item)
+                    value = row_data.get(col_name, "N/A")
+                    # Check if this was a numeric column
+                    if col_name == "score" or col_name == "pages":
+                        try:
+                            numeric_value = float(value) if value != "N/A" else None
+                            item = NumericTableWidgetItem(value, numeric_value)
+                        except (ValueError, TypeError):
+                            item = QTableWidgetItem(value)
+                    elif col_name == "Duration" and value != "N/A":
+                        # Preserve numeric sorting for duration
+                        # Extract seconds from HH:MM:SS format
+                        try:
+                            parts = value.split(":")
+                            if len(parts) == 3:
+                                seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+                                item = NumericTableWidgetItem(value, seconds)
+                            else:
+                                item = QTableWidgetItem(value)
+                        except (ValueError, IndexError, TypeError):
+                            item = QTableWidgetItem(value)
+                    else:
+                        item = QTableWidgetItem(value)
+                    
+                    self.editions_table_widget.setItem(row, col, item)
         
         # Restore column widths where possible
         for col, col_name in enumerate(new_visible_columns):
@@ -1380,10 +1629,6 @@ class MainWindow(QMainWindow):
         total_rows = self.editions_table_widget.rowCount()
         
         for row in range(total_rows):
-            # Skip accordion rows
-            if row in self.editions_table_widget.expanded_rows.values():
-                continue
-                
             # Check if row matches filters
             row_visible = self._row_matches_filters(row, filters, logic_mode)
             
@@ -1394,7 +1639,7 @@ class MainWindow(QMainWindow):
                 hidden_count += 1
         
         # Update status
-        visible_count = total_rows - hidden_count - len(self.editions_table_widget.expanded_rows)
+        visible_count = total_rows - hidden_count
         if hidden_count > 0:
             self.status_bar.showMessage(
                 f"Filter applied: {visible_count} editions shown, {hidden_count} hidden.", 
@@ -1450,7 +1695,7 @@ class MainWindow(QMainWindow):
         else:  # OR
             return any(results) if results else False
     
-    def _apply_filter_operator(self, cell_value, operator, filter_value, column_name):
+    def _apply_filter_operator(self, cell_value, operator, filter_value, column_name):  # pylint: disable=unused-argument
         """
         Apply a filter operator to a cell value.
         
@@ -1558,40 +1803,225 @@ class MainWindow(QMainWindow):
         
         self.status_bar.showMessage("Filters cleared.", 3000)
     
-    def _filter_history(self, search_text: str):
+    def _filter_history(self, search_text: str):  # pylint: disable=unused-argument
         """Filter history items based on search text."""
-        # Implementation placeholder for history filtering
-        pass
+        filtered_entries = self.history_manager.search_history(search_text)
+        self._display_history_entries(filtered_entries)
     
-    def _sort_history(self, sort_by: str):
+    def _sort_history(self, sort_by: str):  # pylint: disable=unused-argument
         """Sort history items by the specified field."""
-        # Implementation placeholder for history sorting
-        pass
-    
-    def _populate_history(self):
-        """Populate the history list widget with saved searches."""
-        # Implementation placeholder for populating history
-        pass
+        # Map combo box text to sort criteria
+        if "Book ID" in sort_by:
+            sorted_entries = self.history_manager.sort_history('book_id')
+        elif "Title" in sort_by:
+            sorted_entries = self.history_manager.sort_history('title')
+        else:  # Date (Newest First)
+            sorted_entries = self.history_manager.sort_history('date')
+        
+        # Apply current search filter if any
+        search_text = self.history_search_box.text()
+        if search_text:
+            sorted_entries = [entry for entry in sorted_entries 
+                            if search_text.lower() in str(entry['book_id']) or 
+                               search_text.lower() in entry['book_title'].lower()]
+        
+        self._display_history_entries(sorted_entries)
     
     def _populate_history_list(self):
         """Populate the history list widget with saved searches."""
-        # Implementation placeholder for populating history list
-        pass
+        history_entries = self.history_manager.get_history()
+        self._display_history_entries(history_entries)
     
     def _clear_history(self):
         """Clear all search history."""
-        # Implementation placeholder for clearing history
-        pass
+        self.history_manager.clear_history()
+        self._populate_history_list()
+        self.status_bar.showMessage("Search history cleared.", 3000)
     
-    def _on_history_item_clicked(self, item):
+    def _on_history_item_clicked(self, item):  # pylint: disable=unused-argument
         """Handle clicking on a history item to re-fetch that book."""
         # Implementation placeholder for history item clicks
         pass
     
-    def _on_history_item_double_clicked(self, item):
+    def _on_history_item_double_clicked(self, item):  # pylint: disable=unused-argument
         """Handle double-clicking on a history item to re-fetch that book."""
-        # Implementation placeholder for history item double clicks
-        pass
+        row = item.row()
+        book_id_item = self.history_list.item(row, 0)
+        if book_id_item:
+            book_id = book_id_item.text()
+            # Switch to main tab
+            self.tab_widget.setCurrentIndex(0)
+            # Set the book ID in the input field
+            self.book_id_line_edit.setText(book_id)
+            # Trigger the fetch
+            self._on_fetch_data_clicked()
+    
+    def _display_history_entries(self, entries: list):
+        """Display the given history entries in the history table."""
+        self.history_list.setRowCount(len(entries))
+        
+        for row, entry in enumerate(entries):
+            # Book ID
+            book_id_item = QTableWidgetItem(str(entry['book_id']))
+            book_id_item.setTextAlignment(Qt.AlignCenter)
+            self.history_list.setItem(row, 0, book_id_item)
+            
+            # Title
+            title_item = QTableWidgetItem(entry['book_title'])
+            self.history_list.setItem(row, 1, title_item)
+            
+            # Date
+            try:
+                # Parse ISO format and display in readable format
+                search_time = datetime.fromisoformat(entry['search_time'])
+                date_str = search_time.strftime("%Y-%m-%d %H:%M:%S")
+            except (ValueError, KeyError):
+                date_str = "Unknown"
+            date_item = QTableWidgetItem(date_str)
+            date_item.setTextAlignment(Qt.AlignCenter)
+            self.history_list.setItem(row, 2, date_item)
+    
+    def _on_edition_checkbox_changed(self, edition_id, state):
+        """Handle checkbox state change for an edition."""
+        if state == Qt.Checked:
+            self.editions_table_widget.checked_editions.add(edition_id)
+        else:
+            self.editions_table_widget.checked_editions.discard(edition_id)
+        
+        # Update the Book Mappings tab
+        self._update_book_mappings_tab()
+    
+    def _update_book_mappings_tab(self):
+        """Update the Book Mappings tab based on checked editions."""
+        # Clear existing content
+        while self.book_mappings_layout.count():
+            child = self.book_mappings_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+        
+        # Get checked edition IDs
+        checked_ids = getattr(self.editions_table_widget, 'checked_editions', set())
+        
+        if not checked_ids:
+            # Show placeholder
+            self.book_mappings_placeholder = QLabel("Select editions from the Main View tab to display their book mappings here.")
+            self.book_mappings_placeholder.setStyleSheet("color: #888; font-style: italic; margin: 20px;")
+            self.book_mappings_placeholder.setAlignment(Qt.AlignCenter)
+            self.book_mappings_layout.addWidget(self.book_mappings_placeholder)
+            return
+        
+        # Create cards for each checked edition
+        for edition_id in checked_ids:
+            # Find the edition data
+            edition_data = None
+            for ed in self.editions_data:
+                if str(ed.get('id', '')) == str(edition_id) or edition_id == f"row_{self.editions_data.index(ed)}":
+                    edition_data = ed
+                    break
+            
+            if not edition_data:
+                continue
+            
+            # Create card widget
+            card = QGroupBox()
+            card.setStyleSheet("""
+                QGroupBox {
+                    background-color: #242424;
+                    border: 1px solid #3d3d3d;
+                    border-radius: 8px;
+                    margin: 10px;
+                    padding: 15px;
+                }
+            """)
+            card_layout = QVBoxLayout(card)
+            
+            # Create title with edition info
+            book_id = edition_data.get('id', 'N/A')
+            isbn_10 = edition_data.get('isbn_10', 'N/A')
+            isbn_13 = edition_data.get('isbn_13', 'N/A')
+            asin = edition_data.get('asin', 'N/A')
+            
+            # Get reading format
+            reading_format_id = edition_data.get('reading_format_id')
+            reading_format_map = {1: "Physical", 2: "Audiobook", 4: "E-Book"}
+            reading_format = reading_format_map.get(reading_format_id, "Unknown")
+            
+            title_text = f"Book ID: {book_id} | ISBN-10: {isbn_10} | ISBN-13: {isbn_13} | ASIN: {asin} | Format: {reading_format}"
+            title_label = QLabel(title_text)
+            title_label.setStyleSheet("""
+                font-weight: bold;
+                font-size: 14px;
+                color: #ffffff;
+                margin-bottom: 10px;
+            """)
+            title_label.setWordWrap(True)
+            card_layout.addWidget(title_label)
+            
+            # Add book mappings
+            book_mappings = edition_data.get('book_mappings', [])
+            if book_mappings:
+                mappings_label = QLabel("Book Mappings:")
+                mappings_label.setStyleSheet("font-weight: bold; margin-top: 5px;")
+                card_layout.addWidget(mappings_label)
+                
+                for mapping in book_mappings:
+                    platform_data = mapping.get('platform')
+                    external_id = mapping.get('external_id')
+                    
+                    if platform_data and external_id:
+                        # Extract platform name from dict
+                        platform_name = platform_data.get('name', 'Unknown') if isinstance(platform_data, dict) else str(platform_data)
+                        
+                        # Create clickable link
+                        link_label = ClickableLabel()
+                        url = self._get_external_url(platform_name, external_id)
+                        link_label.setContent("", f"{platform_name}: {external_id}", url)
+                        link_label.linkActivated.connect(self._open_web_link)
+                        card_layout.addWidget(link_label)
+            else:
+                no_mappings_label = QLabel("No book mappings available")
+                no_mappings_label.setStyleSheet("color: #888; font-style: italic;")
+                card_layout.addWidget(no_mappings_label)
+            
+            self.book_mappings_layout.addWidget(card)
+        
+        # Add stretch to push cards to top
+        self.book_mappings_layout.addStretch()
+    
+    def _get_external_url(self, platform, external_id):
+        """Get the external URL for a given platform and ID."""
+        # Platform URL mappings from the accordion implementation
+        platform_urls = {
+            'goodreads': f'https://www.goodreads.com/book/show/{external_id}',
+            'openlibrary': f'https://openlibrary.org{external_id}' if external_id.startswith('/') else f'https://openlibrary.org/books/{external_id}',
+            'googlebooks': f'https://books.google.com/books?id={external_id}',
+            'bookshop': f'https://bookshop.org/books/{external_id}',
+            'amazon': f'https://www.amazon.com/dp/{external_id}',
+            'bookdepository': f'https://www.bookdepository.com/book/{external_id}',
+            'indiebound': f'https://www.indiebound.org/book/{external_id}',
+            'audible': f'https://www.audible.com/pd/{external_id}',
+            'kobo': f'https://www.kobo.com/ebook/{external_id}',
+            'scribd': f'https://www.scribd.com/book/{external_id}',
+            'librarything': f'https://www.librarything.com/work/{external_id}',
+            'storygraph': f'https://app.thestorygraph.com/books/{external_id}',
+            'bookwyrm': f'https://bookwyrm.social/book/{external_id}',
+            'wikidata': f'https://www.wikidata.org/wiki/{external_id}',
+            'wikipedia': f'https://en.wikipedia.org/wiki/{external_id}',
+            'isfdb': f'https://www.isfdb.org/cgi-bin/title.cgi?{external_id}',
+            'lccn': f'https://lccn.loc.gov/{external_id}',
+            'oclc': f'https://www.worldcat.org/oclc/{external_id}',
+            'dnb': f'https://portal.dnb.de/opac/showFullRecord?currentResultId={external_id}',
+            'trove': f'https://trove.nla.gov.au/work/{external_id}',
+            'jisc': f'https://discover.jisc.ac.uk/search?q={external_id}',
+            'k10plus': f'https://k10plus.de/DB=2.1/PPNSET?PPN={external_id}',
+        }
+        
+        platform_lower = platform.lower()
+        if platform_lower in platform_urls:
+            return platform_urls[platform_lower]
+        else:
+            # Default fallback - just search for the ID
+            return f'https://www.google.com/search?q={platform}+{external_id}'
 
 def main():
     """
