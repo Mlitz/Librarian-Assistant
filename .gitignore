@@ -185,3 +185,6 @@ planning/
 drafts/
 *.draft
 *.plan
+
+# Development notes and ideas
+IDEAS.md
