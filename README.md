@@ -68,6 +68,32 @@ Download the pre-built executable for your platform from the Releases page.
 - Use the search box to filter history
 - Sort by Book ID or Title
 
+## Screenshots
+
+### Main Interface
+![Main View with Book Data](screenshots/Screenshot%20from%202025-05-31%2014-14-05.png)
+*Main interface showing book information for "Dune" with a comprehensive editions table featuring sortable columns, cover indicators, and edition details.*
+
+### Full Editions Table
+![Editions Table View](screenshots/Screenshot%20from%202025-05-31%2014-14-20.png)
+*Detailed view of the editions table displaying multiple Dune editions with scores, ISBNs, reading formats, and other metadata.*
+
+### Advanced Filtering
+![Advanced Filter Dialog](screenshots/Screenshot%20from%202025-05-31%2014-14-54.png)
+*Advanced filter dialog allowing users to create complex filter rules with AND/OR logic to refine the editions table.*
+
+### Column Configuration
+![Column Configuration](screenshots/Screenshot%20from%202025-05-31%2014-15-04.png)
+*Column configuration dialog for customizing which columns are visible and their display order in the editions table.*
+
+### Search History
+![Search History Tab](screenshots/Screenshot%20from%202025-05-31%2014-15-14.png)
+*Search history tab showing previously searched books with sorting and filtering capabilities for easy access to past searches.*
+
+### Book Mappings
+![Book Mappings Tab](screenshots/Screenshot%20from%202025-05-31%2014-15-26.png)
+*Book mappings tab displaying external platform links (Goodreads, Google Books, OpenLibrary, AbeBooks) for different book editions.*
+
 ## Building from Source
 
 To create a standalone executable:
@@ -131,8 +157,8 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 2. Create a feature branch
 3. Follow the TDD process
 4. Ensure all tests pass
-5. Commit your changes
-6. Push to the branch 
+5. Commit your changess
+6. Push to the branch
 7. Open a Pull Request
 
 ## Acknowledgments
