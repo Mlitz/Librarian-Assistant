@@ -2,7 +2,6 @@
 # ABOUTME: It uses the keyring library for secure storage of the API Bearer Token.
 
 import keyring
-import keyring.errors # For specific keyring exceptions if needed
 import logging
 
 # Configure a logger for this module

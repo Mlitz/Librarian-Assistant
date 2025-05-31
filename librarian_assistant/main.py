@@ -3,7 +3,7 @@
 import sys
 from datetime import datetime
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QTabWidget, QWidget, QLineEdit, QTableWidget, QTableWidgetItem, QScrollArea,
-                             QVBoxLayout, QHBoxLayout, QLabel, QGroupBox, QPushButton, QHeaderView, QComboBox, QCheckBox)
+                             QVBoxLayout, QHBoxLayout, QLabel, QGroupBox, QPushButton, QHeaderView, QComboBox, QCheckBox, QMessageBox)
 from PyQt5.QtGui import QIntValidator, QValidator, QColor
 from PyQt5.QtCore import Qt
 
@@ -12,7 +12,8 @@ from librarian_assistant.config_manager import ConfigManager
 from librarian_assistant.token_dialog import TokenDialog
 # Import API client and exceptions
 from librarian_assistant.api_client import ApiClient
-from librarian_assistant.exceptions import ApiException, ApiNotFoundError
+from librarian_assistant.exceptions import (ApiException, ApiNotFoundError, 
+                                           ApiAuthError, NetworkError, ApiProcessingError)
 # Import image handling
 from librarian_assistant.image_downloader import ImageDownloader
 # Import ColumnConfigDialog for column configuration
@@ -21,6 +22,8 @@ from librarian_assistant.column_config_dialog import ColumnConfigDialog
 from librarian_assistant.filter_dialog import FilterDialog
 # Import HistoryManager for search history
 from librarian_assistant.history_manager import HistoryManager
+# Import enhanced stylesheet
+from librarian_assistant.enhanced_stylesheet import ENHANCED_DARK_THEME
 
 import webbrowser # For opening external links
 import logging
@@ -456,14 +459,34 @@ class MainWindow(QMainWindow):
         # Filter tracking
         self.active_filters = []  # Currently applied filters
         self.filter_logic_mode = 'AND'  # AND or OR
+        
+        # Create status bar early so it can be used for error messages
+        self.status_bar = self.statusBar()
+        self.status_bar.showMessage("Initializing...")
 
-        self.config_manager = ConfigManager()
+        # Initialize managers with error handling
+        try:
+            self.config_manager = ConfigManager()
+        except Exception as e:
+            logger.error(f"Failed to initialize ConfigManager: {e}")
+            QMessageBox.critical(self, "Initialization Error", 
+                               "Failed to initialize configuration manager.\n"
+                               "The application may not function properly.")
+            self.config_manager = None
+            
         self.api_client = ApiClient(
             base_url=HARDCOVER_API_BASE_URL,
             token_manager=self.config_manager
-        )
+        ) if self.config_manager else None
+        
         self.image_downloader = ImageDownloader()
-        self.history_manager = HistoryManager()
+        
+        try:
+            self.history_manager = HistoryManager()
+        except Exception as e:
+            logger.error(f"Failed to initialize HistoryManager: {e}")
+            self.status_bar.showMessage("Error loading search history. History features may be unavailable.")
+            self.history_manager = None
 
         self.tab_widget = QTabWidget()
         self.setCentralWidget(self.tab_widget)
@@ -485,7 +508,7 @@ class MainWindow(QMainWindow):
         api_layout.addWidget(self.token_display_label)
 
         self.set_token_button = QPushButton("Set/Update Token")
-        self.set_token_button.setObjectName("setTokenButton")
+        self.set_token_button.setObjectName("setUpdateTokenButton")
         self.set_token_button.clicked.connect(self._open_set_token_dialog)
         api_layout.addWidget(self.set_token_button)
 
@@ -689,7 +712,7 @@ class MainWindow(QMainWindow):
         
         self.tab_widget.addTab(self.book_mappings_scroll, "Book Mappings")
 
-        self.status_bar = self.statusBar()
+        # Status bar already created at the beginning of __init__
         self.status_bar.showMessage("Ready")
 
         self._update_token_display()
@@ -717,18 +740,34 @@ class MainWindow(QMainWindow):
         Handles the token received from TokenDialog.
         Saves the token and updates the display.
         """
-        self.config_manager.save_token(token)
-        self._update_token_display()
+        if self.config_manager:
+            try:
+                self.config_manager.save_token(token)
+                self._update_token_display()
+                self.status_bar.showMessage("Token saved successfully.", 3000)
+            except Exception as e:
+                logger.error(f"Failed to save token: {e}")
+                self.status_bar.showMessage("Error saving API token. Please try setting it again.")
+        else:
+            self.status_bar.showMessage("Configuration manager not available.", 3000)
 
     def _update_token_display(self):
         """
         Updates the token display label based on the token in ConfigManager.
         """
-        current_token = self.config_manager.load_token()
-        if current_token: # Checks if token is not None and not an empty string
-            self.token_display_label.setText(self._format_label_text("Token: ", "*******"))
+        if self.config_manager:
+            try:
+                current_token = self.config_manager.load_token()
+                if current_token: # Checks if token is not None and not an empty string
+                    self.token_display_label.setText(self._format_label_text("Token: ", "*******"))
+                else:
+                    self.token_display_label.setText(self._format_label_text("Token: ", "Not Set"))
+            except Exception as e:
+                logger.error(f"Failed to load token: {e}")
+                self.token_display_label.setText(self._format_label_text("Token: ", "Error Loading"))
+                self.status_bar.showMessage("Error loading API token. Please try setting it again.", 3000)
         else:
-            self.token_display_label.setText(self._format_label_text("Token: ", "Not Set"))
+            self.token_display_label.setText(self._format_label_text("Token: ", "Config Error"))
 
     def _on_book_id_text_changed(self, text: str):
         """
@@ -757,6 +796,22 @@ class MainWindow(QMainWindow):
             self.status_bar.showMessage("Book ID cannot be empty. Please enter a valid numerical Book ID.")
             logger.warning("Fetch Data clicked with empty Book ID.")
             return
+            
+        # Check if token is set
+        if self.config_manager:
+            try:
+                token = self.config_manager.load_token()
+                if not token:
+                    self.status_bar.showMessage("API Bearer Token not set. Please set it via the 'Set/Update Token' button.")
+                    logger.warning("Fetch Data clicked without API token set.")
+                    return
+            except Exception as e:
+                logger.error(f"Failed to check token status: {e}")
+                self.status_bar.showMessage("Error checking API token. Please try setting it again.")
+                return
+        else:
+            self.status_bar.showMessage("Configuration error. Cannot proceed with fetch.")
+            return
 
         # The QIntValidator ensures book_id_str is numerical if not empty.
         # We still need to convert it to an int for the ApiClient.
@@ -765,7 +820,7 @@ class MainWindow(QMainWindow):
         except ValueError:
             # This case should ideally not be reached if QIntValidator and _on_book_id_text_changed work perfectly,
             # but as a safeguard:
-            self.status_bar.showMessage("Invalid Book ID format. Please enter a numerical Book ID.")
+            self.status_bar.showMessage("Please enter a valid numerical Book ID.")
             logger.error(f"Fetch Data clicked with non-integer Book ID that bypassed validation: {book_id_str}")
             return
 
@@ -791,10 +846,16 @@ class MainWindow(QMainWindow):
                 logger.info(f"Successfully fetched data for Book ID {book_id_int}: {book_data.get('title', 'N/A')}")
                 logger.info(f"Complete book_data received by main.py for Book ID {book_id_int}: {book_data}")
                 
-                # Add to search history
+                # Add to search history with error handling
                 book_title = book_data.get('title', 'Unknown Title')
-                self.history_manager.add_search(book_id_int, book_title)
-                self._populate_history_list()  # Refresh history display
+                if self.history_manager:
+                    try:
+                        self.history_manager.add_search(book_id_int, book_title)
+                        self._populate_history_list()  # Refresh history display
+                    except Exception as e:
+                        logger.error(f"Failed to save search history: {e}")
+                        # Non-critical error - continue with displaying the book data
+                        self.status_bar.showMessage("Error saving search history.", 3000)  # Show for 3 seconds
 
                 # Re-create and populate the General Book Information Area widgets
                 # Title
@@ -1216,11 +1277,37 @@ class MainWindow(QMainWindow):
                 self.status_bar.showMessage(f"No data returned for Book ID {book_id_str}.")
                 logger.warning(f"No data returned by ApiClient for Book ID {book_id_int}, but no exception was raised.")
         except ApiNotFoundError as e:
-            self.status_bar.showMessage(f"Error fetching data: {e}")
+            self.status_bar.showMessage(f"Book ID {book_id_int} not found.")
             logger.warning(f"API_CLIENT_ERROR - ApiNotFoundError for Book ID {book_id_int}: {e}")
-        except ApiException as e: # Catch other ApiClient specific exceptions
-            self.status_bar.showMessage(f"Error fetching data: {e}")
-            logger.error(f"API_CLIENT_ERROR - An API exception occurred for Book ID {book_id_int}: {e}")
+        except ApiAuthError as e:
+            self.status_bar.showMessage("API Authentication Failed. Please check your Bearer Token.")
+            logger.error(f"API_CLIENT_ERROR - Authentication error for Book ID {book_id_int}: {e}")
+        except NetworkError as e:
+            # Check if it's a rate limit error
+            if hasattr(e, 'response') and e.response and e.response.status_code == 429:
+                self.status_bar.showMessage("API rate limit exceeded. Please try again later.")
+                logger.warning(f"API_CLIENT_ERROR - Rate limit exceeded for Book ID {book_id_int}")
+            else:
+                self.status_bar.showMessage("Network error. Unable to connect to Hardcover.app API. Please check your internet connection.")
+                logger.error(f"API_CLIENT_ERROR - Network error for Book ID {book_id_int}: {e}")
+        except ApiProcessingError as e:
+            # Show detailed error dialog for unexpected API responses
+            error_details = f"ApiProcessingError: {str(e)}\n\nBook ID: {book_id_int}"
+            QMessageBox.critical(self, "API Error", 
+                               f"An unexpected error occurred. Please copy the details below and report this issue:\n\n{error_details}")
+            self.status_bar.showMessage("An unexpected API error occurred. See dialog for details.")
+            logger.error(f"API_CLIENT_ERROR - Processing error for Book ID {book_id_int}: {e}")
+        except ApiException as e:
+            # Generic API exception
+            self.status_bar.showMessage(f"API error: {e}")
+            logger.error(f"API_CLIENT_ERROR - Generic API exception for Book ID {book_id_int}: {e}")
+        except Exception as e:
+            # Catch any other unexpected errors
+            error_details = f"{type(e).__name__}: {str(e)}\n\nBook ID: {book_id_int}"
+            QMessageBox.critical(self, "Unexpected Error", 
+                               f"An unexpected error occurred. Please copy the details below and report this issue:\n\n{error_details}")
+            self.status_bar.showMessage("An unexpected error occurred. See dialog for details.")
+            logger.exception(f"Unexpected error while fetching Book ID {book_id_int}: {e}")
 
     def _open_web_link(self, url: str):
         """Opens the given URL in the default web browser."""
@@ -1797,16 +1884,19 @@ class MainWindow(QMainWindow):
         
         # Show all rows
         for row in range(self.editions_table_widget.rowCount()):
-            # Don't unhide accordion rows
-            if row not in self.editions_table_widget.expanded_rows.values():
-                self.editions_table_widget.setRowHidden(row, False)
+            self.editions_table_widget.setRowHidden(row, False)
         
         self.status_bar.showMessage("Filters cleared.", 3000)
     
     def _filter_history(self, search_text: str):  # pylint: disable=unused-argument
         """Filter history items based on search text."""
-        filtered_entries = self.history_manager.search_history(search_text)
-        self._display_history_entries(filtered_entries)
+        if self.history_manager:
+            try:
+                filtered_entries = self.history_manager.search_history(search_text)
+                self._display_history_entries(filtered_entries)
+            except Exception as e:
+                logger.error(f"Failed to filter history: {e}")
+                self.status_bar.showMessage("Error filtering search history.", 3000)
     
     def _sort_history(self, sort_by: str):  # pylint: disable=unused-argument
         """Sort history items by the specified field."""
@@ -1829,14 +1919,26 @@ class MainWindow(QMainWindow):
     
     def _populate_history_list(self):
         """Populate the history list widget with saved searches."""
-        history_entries = self.history_manager.get_history()
-        self._display_history_entries(history_entries)
+        if self.history_manager:
+            try:
+                history_entries = self.history_manager.get_history()
+                self._display_history_entries(history_entries)
+            except Exception as e:
+                logger.error(f"Failed to load history: {e}")
+                self.status_bar.showMessage("Error loading search history.", 3000)
+                # Display empty list on error
+                self._display_history_entries([])
     
     def _clear_history(self):
         """Clear all search history."""
-        self.history_manager.clear_history()
-        self._populate_history_list()
-        self.status_bar.showMessage("Search history cleared.", 3000)
+        if self.history_manager:
+            try:
+                self.history_manager.clear_history()
+                self._populate_history_list()
+                self.status_bar.showMessage("Search history cleared.", 3000)
+            except Exception as e:
+                logger.error(f"Failed to clear history: {e}")
+                self.status_bar.showMessage("Error clearing search history.", 3000)
     
     def _on_history_item_clicked(self, item):  # pylint: disable=unused-argument
         """Handle clicking on a history item to re-fetch that book."""
@@ -2027,163 +2129,36 @@ def main():
     """
     Main function to initialize and run the application.
     """
-    # Configure logging to show INFO level messages
-    # This should be done before any loggers are used extensively if you want
-    # to capture early messages, or at least before the parts you're interested in.
-    logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(name)s:%(message)s')
+    # Configure comprehensive logging
+    import os
+    from datetime import datetime
+    
+    # Create logs directory if it doesn't exist
+    log_dir = os.path.join(os.path.expanduser('~'), '.librarian-assistant', 'logs')
+    os.makedirs(log_dir, exist_ok=True)
+    
+    # Log file with timestamp
+    log_file = os.path.join(log_dir, f'librarian-assistant-{datetime.now().strftime("%Y%m%d")}.log')
+    
+    # Configure logging with both file and console handlers
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_file, encoding='utf-8'),
+            logging.StreamHandler()  # Console output
+        ]
+    )
+    
+    # Set console handler to INFO level to reduce noise
+    console_handler = logging.getLogger().handlers[1]  # Second handler is console
+    console_handler.setLevel(logging.INFO)
+    
+    logger.info("Starting Librarian-Assistant application")
+    logger.info(f"Log file: {log_file}")
     app = QApplication(sys.argv)
 
-    app.setStyleSheet("""
-        QWidget {
-            background-color: #1a1a1a; 
-            color: #e0e0e0; 
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
-            font-size: 12pt;
-        }
-        QMainWindow {
-            background-color: #0d0d0d;
-        }
-        QTabWidget::pane {
-            border-top: 2px solid #2d2d2d;
-            background-color: #1a1a1a;
-        }
-        QTabBar::tab {
-            background: #242424;
-            color: #b0b0b0;
-            padding: 8px 16px;
-            border: 1px solid #2d2d2d;
-            border-bottom-color: #2d2d2d; 
-            border-top-left-radius: 4px;
-            border-top-right-radius: 4px;
-        }
-        QTabBar::tab:selected {
-            background: #1a1a1a; 
-            color: #ffffff;
-            margin-bottom: -1px; 
-            border-bottom-color: #1a1a1a;
-        }
-        QTabBar::tab:hover {
-            background: #2d2d2d;
-            color: #ffffff;
-        }
-        QGroupBox {
-            font-weight: bold;
-            border: 1px solid #2d2d2d;
-            border-radius: 6px;
-            margin-top: 20px;
-            background-color: #1a1a1a;
-        }
-        QGroupBox:checkable {
-            subcontrol-origin: margin;
-            subcontrol-position: left top;
-            padding-left: 0px;
-            margin-left: 0px;
-        }
-        QGroupBox::indicator {
-            width: 0px;
-            height: 0px;
-            margin: 0px;
-            padding: 0px;
-        }
-        QGroupBox[collapsed="true"] {
-            border-bottom: none;
-            padding-bottom: 0px;
-        }
-        QGroupBox::title {
-            subcontrol-origin: margin;
-            subcontrol-position: top left; 
-            padding: 0 8px;
-            left: 10px;
-            color: #ffffff;
-        }
-        QStatusBar {
-            background-color: #0d0d0d;
-            color: #b0b0b0;
-            border-top: 1px solid #2d2d2d;
-        }
-        QLabel {
-            color: #e0e0e0;
-        }
-        QPushButton { 
-            background-color: #6b46c1; 
-            color: #ffffff;
-            border: none;
-            border-radius: 4px;
-            padding: 6px 16px;
-            min-height: 24px;
-            font-weight: 500;
-        }
-        QPushButton:hover { 
-            background-color: #7c52d9;
-        }
-        QPushButton:pressed { 
-            background-color: #553899;
-        }
-        QLineEdit { 
-            border: 1px solid #2d2d2d;
-            border-radius: 4px;
-            background-color: #242424;
-            color: #e0e0e0;
-            padding: 6px 8px;
-            selection-background-color: #6b46c1;
-        }
-        QLineEdit:focus {
-            border: 1px solid #6b46c1;
-        }
-        QTableWidget {
-            background-color: #1a1a1a;
-            alternate-background-color: #242424;
-            gridline-color: #2d2d2d;
-            color: #e0e0e0;
-            selection-background-color: #6b46c1;
-            selection-color: #ffffff;
-        }
-        QTableWidget::item {
-            padding: 4px;
-        }
-        QHeaderView::section {
-            background-color: #242424;
-            color: #ffffff;
-            padding: 6px;
-            border: none;
-            border-right: 1px solid #2d2d2d;
-            border-bottom: 1px solid #2d2d2d;
-            font-weight: 600;
-        }
-        QHeaderView::section:hover {
-            background-color: #2d2d2d;
-        }
-        QScrollBar:vertical {
-            background-color: #1a1a1a;
-            width: 12px;
-            border: none;
-        }
-        QScrollBar::handle:vertical {
-            background-color: #3d3d3d;
-            min-height: 30px;
-            border-radius: 6px;
-        }
-        QScrollBar::handle:vertical:hover {
-            background-color: #4d4d4d;
-        }
-        QScrollBar:horizontal {
-            background-color: #1a1a1a;
-            height: 12px;
-            border: none;
-        }
-        QScrollBar::handle:horizontal {
-            background-color: #3d3d3d;
-            min-width: 30px;
-            border-radius: 6px;
-        }
-        QScrollBar::handle:horizontal:hover {
-            background-color: #4d4d4d;
-        }
-        QScrollBar::add-line, QScrollBar::sub-line {
-            border: none;
-            background: none;
-        }
-    """)
+    app.setStyleSheet(ENHANCED_DARK_THEME)
     
     window = MainWindow()
     window.show()

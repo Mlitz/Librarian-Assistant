@@ -1,14 +1,25 @@
 # ABOUTME: This file contains unit tests for the MainWindow class.
 # ABOUTME: It tests the main UI window functionality including book fetching and display.
+
+# Standard library imports
 import unittest
-from unittest.mock import patch, Mock # Import patch and Mock
-from PyQt5.QtWidgets import QApplication, QLabel, QLineEdit, QPushButton, QGroupBox, QTableWidget, QHeaderView, QTableWidgetItem, QFrame, QWidget
-from PyQt5.QtCore import Qt # Import Qt for Qt.LeftButton
-from PyQt5.QtTest import QTest # For simulating clicks
-from librarian_assistant.main import MainWindow, ClickableLabel # Make sure this import path is correct
+from unittest.mock import patch, Mock
+
+# Third-party imports
+from PyQt5.QtCore import Qt
+from PyQt5.QtTest import QTest
+from PyQt5.QtWidgets import (
+    QApplication, QLabel, QLineEdit, QPushButton, 
+    QGroupBox, QTableWidget, QHeaderView, QTableWidgetItem
+)
+
+# Local imports
 from librarian_assistant.api_client import ApiClient
-from librarian_assistant.image_downloader import ImageDownloader # Import ImageDownloader
-from librarian_assistant.exceptions import ApiNotFoundError, ApiAuthError, NetworkError, ApiProcessingError
+from librarian_assistant.exceptions import (
+    ApiNotFoundError, ApiAuthError, NetworkError, ApiProcessingError
+)
+from librarian_assistant.image_downloader import ImageDownloader
+from librarian_assistant.main import MainWindow, ClickableLabel
 
 class TestMainWindow(unittest.TestCase):
     def setUp(self):
@@ -75,7 +86,10 @@ class TestMainWindow(unittest.TestCase):
         Test that MainWindow instantiates an ImageDownloader.
         """
         self.assertIsNotNone(self.window.image_downloader, "MainWindow should have an image_downloader attribute.")
-        self.assertIsInstance(self.window.image_downloader, ImageDownloader, "image_downloader attribute should be an instance of ImageDownloader.")
+        self.assertIsInstance(
+            self.window.image_downloader, ImageDownloader, 
+            "image_downloader attribute should be an instance of ImageDownloader."
+        )
 
     @patch('librarian_assistant.main.logger.info') # To ensure no logging happens on invalid input
     def test_fetch_data_button_empty_book_id_shows_status_error(self, mock_main_logger_info):
@@ -107,7 +121,10 @@ class TestMainWindow(unittest.TestCase):
         Test that MainWindow instantiates an ApiClient.
         """
         self.assertIsNotNone(self.window.api_client, "MainWindow should have an api_client attribute.")
-        self.assertIsInstance(self.window.api_client, ApiClient, "api_client attribute should be an instance of ApiClient.")
+        self.assertIsInstance(
+            self.window.api_client, ApiClient, 
+            "api_client attribute should be an instance of ApiClient."
+        )
 
     @patch.object(ApiClient, 'get_book_by_id') # Patching at the class level
     def test_fetch_data_button_calls_api_client_with_valid_book_id(self, mock_api_get_book_by_id):
@@ -173,7 +190,7 @@ class TestMainWindow(unittest.TestCase):
         
         fetch_data_button.click()
         
-        expected_status_message = f"Error fetching data: Resource not found: ID {test_book_id_str}"
+        expected_status_message = f"Book ID {test_book_id_str} not found."
         self.assertEqual(self.window.status_bar.currentMessage(), expected_status_message)
         mock_api_get_book_by_id.assert_called_once_with(int(test_book_id_str))
 
@@ -195,7 +212,7 @@ class TestMainWindow(unittest.TestCase):
         
         fetch_data_button.click()
         
-        expected_status_message = f"Error fetching data: {error_message}"
+        expected_status_message = "API Authentication Failed. Please check your Bearer Token."
         self.assertEqual(self.window.status_bar.currentMessage(), expected_status_message)
         mock_api_get_book_by_id.assert_called_once_with(int(test_book_id_str))
 
@@ -217,7 +234,10 @@ class TestMainWindow(unittest.TestCase):
         
         fetch_data_button.click()
         
-        expected_status_message = f"Error fetching data: {error_message}"
+        expected_status_message = (
+            "Network error. Unable to connect to Hardcover.app API. "
+            "Please check your internet connection."
+        )
         self.assertEqual(self.window.status_bar.currentMessage(), expected_status_message)
         mock_api_get_book_by_id.assert_called_once_with(int(test_book_id_str))
 
@@ -237,9 +257,11 @@ class TestMainWindow(unittest.TestCase):
 
         book_id_line_edit.setText(test_book_id_str)
         
-        fetch_data_button.click()
+        # Mock the QMessageBox to prevent the dialog from showing
+        with patch('PyQt5.QtWidgets.QMessageBox.critical'):
+            fetch_data_button.click()
         
-        expected_status_message = f"Error fetching data: {error_message}"
+        expected_status_message = "An unexpected API error occurred. See dialog for details."
         self.assertEqual(self.window.status_bar.currentMessage(), expected_status_message)
         mock_api_get_book_by_id.assert_called_once_with(int(test_book_id_str))
  
@@ -299,15 +321,25 @@ class TestMainWindow(unittest.TestCase):
         # Check that the slug is displayed with HTML formatting
         self.assertIn("the-great-test-book-slug", self.window.book_slug_label.text())
         self.assertIn("href=", self.window.book_slug_label.text())  # Verify it's a link
-        self.assertEqual(self.window.book_slug_label.parentWidget(), self.window.book_info_area, "Slug label not in book info area.")
+        self.assertEqual(
+            self.window.book_slug_label.parentWidget(), 
+            self.window.book_info_area, 
+            "Slug label not in book info area."
+        )
 
         self.assertIsNotNone(self.window.book_authors_label, "Book authors QLabel attribute not updated.")
         # Assuming authors are joined by ", " in main.py
         self.assertIn("<span style='color:#999999;'>Authors: </span>", self.window.book_authors_label.text())
-        self.assertIn("<span style='color:#e0e0e0;'>Author One, Author Two</span>", self.window.book_authors_label.text())
+        self.assertIn(
+            "<span style='color:#e0e0e0;'>Author One, Author Two</span>", 
+            self.window.book_authors_label.text()
+        )
 
         self.assertIsNotNone(self.window.book_id_queried_label, "Book ID (queried) QLabel attribute not updated.")
-        self.assertIn("<span style='color:#999999;'>Book ID (Queried): </span>", self.window.book_id_queried_label.text())
+        self.assertIn(
+            "<span style='color:#999999;'>Book ID (Queried): </span>", 
+            self.window.book_id_queried_label.text()
+        )
         self.assertIn("<span style='color:#e0e0e0;'>123</span>", self.window.book_id_queried_label.text()) # From input
 
         self.assertIsNotNone(self.window.book_total_editions_label, "Total editions QLabel attribute not updated.")
