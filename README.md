@@ -128,11 +128,11 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Follow the TDD process outlined in CLAUDE.md
+2. Create a feature branch
+3. Follow the TDD process
 4. Ensure all tests pass
 5. Commit your changes
-6. Push to the branch (`git push origin feature/amazing-feature`)
+6. Push to the branch 
 7. Open a Pull Request
 
 ## Acknowledgments
