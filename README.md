@@ -1,6 +1,6 @@
 # Librarian-Assistant
 
-A PyQt5-based desktop application for viewing and analyzing book edition data from the Hardcover.app API.
+A PyQt6-based desktop application for viewing and analyzing book edition data from the Hardcover.app API.
 
 ## Features
 
@@ -11,9 +11,12 @@ A PyQt5-based desktop application for viewing and analyzing book edition data fr
   - Advanced filtering with multiple criteria
   - Dynamic contributor columns based on book data
   - Clickable links to external platforms
+  - Book mappings display with external platform links
+  - Selectable editions with checkboxes
 - **Search History**: Persistent history with search/filter capabilities
-- **Dark Theme UI**: Modern, user-friendly interface
+- **Enhanced Dark Theme UI**: Modern, user-friendly interface with improved styling
 - **Cross-Platform**: Works on Windows, macOS, and Linux
+- **Code Quality**: Comprehensive linting and pre-commit hooks
 
 ## Installation
 
@@ -68,6 +71,32 @@ Download the pre-built executable for your platform from the Releases page.
 - Use the search box to filter history
 - Sort by Book ID or Title
 
+## Screenshots
+
+### Main View with Book Data
+*View book information and edition details in a clean, organized interface*
+![Main View with Book Data](screenshots/Screenshot%20from%202025-05-31%2014-14-05.png)
+
+### Editions Table View
+*Browse through multiple editions with sortable columns and clickable links*
+![Editions Table View](screenshots/Screenshot%20from%202025-05-31%2014-14-20.png)
+
+### Advanced Filter Dialog
+*Apply complex filters to find exactly what you're looking for*
+![Advanced Filter Dialog](screenshots/Screenshot%20from%202025-05-31%2014-14-54.png)
+
+### Column Configuration
+*Customize which columns to display and their order*
+![Column Configuration](screenshots/Screenshot%20from%202025-05-31%2014-15-04.png)
+
+### Search History Tab
+*Access your previous searches quickly and easily*
+![Search History Tab](screenshots/Screenshot%20from%202025-05-31%2014-15-14.png)
+
+### Book Mappings Tab
+*View external platform mappings for selected editions*
+![Book Mappings Tab](screenshots/Screenshot%20from%202025-05-31%2014-15-26.png)
+
 ## Building from Source
 
 To create a standalone executable:
@@ -93,6 +122,24 @@ python -m pytest Tests/test_api_client.py
 python -m pytest --cov=librarian_assistant
 ```
 
+### Code Quality
+
+The project uses automated code quality tools:
+
+```bash
+# Run linting
+flake8 librarian_assistant/ Tests/
+
+# Format code with black
+black librarian_assistant/ Tests/
+
+# Sort imports
+isort librarian_assistant/ Tests/
+
+# Install pre-commit hooks
+pre-commit install
+```
+
 ### Project Structure
 
 ```
@@ -111,6 +158,7 @@ Librarian-Assistant/
 ## Requirements
 
 - Python 3.8 or higher
+- PyQt6 6.4.0 or higher
 - Internet connection for API access
 - Valid Hardcover.app Bearer token
 
@@ -137,6 +185,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Acknowledgments
 
-- Built with PyQt5
+- Built with PyQt6
 - Uses the Hardcover.app GraphQL API
 - Developed using Test-Driven Development principles
