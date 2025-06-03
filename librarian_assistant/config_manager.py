@@ -10,11 +10,13 @@ logger = logging.getLogger(__name__)
 SERVICE_NAME = "HardcoverApp"
 USERNAME = "BearerToken"
 
+
 class ConfigManager:
     """
     Manages configuration data for the Librarian-Assistant application,
     using the keyring library for secure token storage.
     """
+
     def __init__(self):
         """
         Initializes the ConfigManager.
@@ -26,7 +28,7 @@ class ConfigManager:
         try:
             # If token is None, keyring might store it as "None" string or empty.
             # The prompt is to call set_password with the token.
-            actual_token_to_store = token 
+            actual_token_to_store = token
             keyring.set_password(SERVICE_NAME, USERNAME, actual_token_to_store)
             logger.info("Token processed by keyring.set_password.")
         except Exception as e:

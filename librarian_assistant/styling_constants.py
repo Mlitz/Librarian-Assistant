@@ -19,10 +19,12 @@ N_A_HIGHLIGHT_USE_ITALIC = True           # Italic text for additional emphasis
 DUPLICATE_MAPPING_WARNING_TEXT = " (Duplicate platform entry)"
 
 # Helper function to generate Qt stylesheet for N/A highlighting
+
+
 def get_na_highlight_stylesheet():
     """
     Generate a Qt stylesheet string for N/A highlighting.
-    
+
     Returns:
         str: CSS-style string for Qt widgets
     """
@@ -32,13 +34,15 @@ def get_na_highlight_stylesheet():
     return style
 
 # Helper function to generate HTML for rich text N/A highlighting
+
+
 def get_na_highlight_html(text):
     """
     Wrap text in HTML with N/A highlight styling.
-    
+
     Args:
         text: The text to highlight
-        
+
     Returns:
         str: HTML-formatted text with styling
     """

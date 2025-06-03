@@ -3,9 +3,10 @@
 
 import unittest
 from unittest.mock import patch, MagicMock
-from PyQt5.QtGui import QPixmap
-import requests # For mocking requests.exceptions
+from PyQt6.QtGui import QPixmap
+import requests  # For mocking requests.exceptions
 from librarian_assistant.image_downloader import ImageDownloader
+
 
 class TestImageDownloader(unittest.TestCase):
 
@@ -101,6 +102,7 @@ class TestImageDownloader(unittest.TestCase):
         downloader = ImageDownloader()
         pixmap = downloader.download_image("")
         self.assertIsNone(pixmap, "download_image should return None if URL is empty.")
+
 
 if __name__ == '__main__':
     unittest.main()

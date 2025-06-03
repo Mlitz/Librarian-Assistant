@@ -6,11 +6,11 @@ import unittest
 from unittest.mock import patch, Mock
 
 # Third-party imports
-from PyQt5.QtCore import Qt
-from PyQt5.QtTest import QTest
-from PyQt5.QtWidgets import (
-    QApplication, QLabel, QLineEdit, QPushButton, 
-    QGroupBox, QTableWidget, QHeaderView, QTableWidgetItem
+from PyQt6.QtCore import Qt
+from PyQt6.QtTest import QTest
+from PyQt6.QtWidgets import (
+    QApplication, QLabel, QLineEdit, QPushButton,
+    QGroupBox, QTableWidgetItem
 )
 
 # Local imports
@@ -20,6 +20,7 @@ from librarian_assistant.exceptions import (
 )
 from librarian_assistant.image_downloader import ImageDownloader
 from librarian_assistant.main import MainWindow, ClickableLabel
+
 
 class TestMainWindow(unittest.TestCase):
     def setUp(self):
@@ -87,11 +88,11 @@ class TestMainWindow(unittest.TestCase):
         """
         self.assertIsNotNone(self.window.image_downloader, "MainWindow should have an image_downloader attribute.")
         self.assertIsInstance(
-            self.window.image_downloader, ImageDownloader, 
+            self.window.image_downloader, ImageDownloader,
             "image_downloader attribute should be an instance of ImageDownloader."
         )
 
-    @patch('librarian_assistant.main.logger.info') # To ensure no logging happens on invalid input
+    @patch('librarian_assistant.main.logger.info')  # To ensure no logging happens on invalid input
     def test_fetch_data_button_empty_book_id_shows_status_error(self, mock_main_logger_info):
         """
         Test that clicking "Fetch Data" with an empty Book ID shows an error
@@ -99,20 +100,20 @@ class TestMainWindow(unittest.TestCase):
         """
         book_id_line_edit = self.window.findChild(QLineEdit, "bookIdLineEdit")
         self.assertIsNotNone(book_id_line_edit, "Book ID QLineEdit not found.")
-        
+
         fetch_data_button = self.window.findChild(QPushButton, "fetchDataButton")
         self.assertIsNotNone(fetch_data_button, "Fetch Data QPushButton not found.")
 
         # Ensure Book ID is empty
         book_id_line_edit.setText("")
-        
+
         # Simulate the button click
         fetch_data_button.click()
-        
+
         # Check status bar message
         expected_status_message = "Book ID cannot be empty. Please enter a valid numerical Book ID."
         self.assertEqual(self.window.status_bar.currentMessage(), expected_status_message)
-        
+
         # Ensure the original logging (and by extension, API call) was not made
         mock_main_logger_info.assert_not_called()
 
@@ -122,11 +123,11 @@ class TestMainWindow(unittest.TestCase):
         """
         self.assertIsNotNone(self.window.api_client, "MainWindow should have an api_client attribute.")
         self.assertIsInstance(
-            self.window.api_client, ApiClient, 
+            self.window.api_client, ApiClient,
             "api_client attribute should be an instance of ApiClient."
         )
 
-    @patch.object(ApiClient, 'get_book_by_id') # Patching at the class level
+    @patch.object(ApiClient, 'get_book_by_id')  # Patching at the class level
     def test_fetch_data_button_calls_api_client_with_valid_book_id(self, mock_api_get_book_by_id):
         """
         Test that clicking "Fetch Data" with a valid Book ID calls
@@ -134,21 +135,21 @@ class TestMainWindow(unittest.TestCase):
         """
         # Mock the return value of get_book_by_id to avoid side effects from its actual implementation
         # and to simulate a successful API call for now.
-        mock_api_get_book_by_id.return_value = {"id": "123", "title": "Mocked Book"} 
+        mock_api_get_book_by_id.return_value = {"id": "123", "title": "Mocked Book"}
 
         book_id_line_edit = self.window.findChild(QLineEdit, "bookIdLineEdit")
         self.assertIsNotNone(book_id_line_edit, "Book ID QLineEdit not found.")
-        
+
         fetch_data_button = self.window.findChild(QPushButton, "fetchDataButton")
         self.assertIsNotNone(fetch_data_button, "Fetch Data QPushButton not found.")
 
         test_book_id_str = "123"
         expected_book_id_int = 123
         book_id_line_edit.setText(test_book_id_str)
-        
+
         # Simulate the button click
         fetch_data_button.click()
-        
+
         # Assert that self.window.api_client.get_book_by_id was called once with the integer book_id
         self.window.api_client.get_book_by_id.assert_called_once_with(expected_book_id_int)
 
@@ -166,9 +167,9 @@ class TestMainWindow(unittest.TestCase):
 
         test_book_id_str = "123"
         book_id_line_edit.setText(test_book_id_str)
-        
+
         fetch_data_button.click()
-        
+
         expected_status_message = f"Book data fetched successfully for ID {test_book_id_str}."
         self.assertEqual(self.window.status_bar.currentMessage(), expected_status_message)
         mock_api_get_book_by_id.assert_called_once_with(int(test_book_id_str))
@@ -187,9 +188,9 @@ class TestMainWindow(unittest.TestCase):
         fetch_data_button = self.window.findChild(QPushButton, "fetchDataButton")
 
         book_id_line_edit.setText(test_book_id_str)
-        
+
         fetch_data_button.click()
-        
+
         expected_status_message = f"Book ID {test_book_id_str} not found."
         self.assertEqual(self.window.status_bar.currentMessage(), expected_status_message)
         mock_api_get_book_by_id.assert_called_once_with(int(test_book_id_str))
@@ -209,9 +210,9 @@ class TestMainWindow(unittest.TestCase):
         fetch_data_button = self.window.findChild(QPushButton, "fetchDataButton")
 
         book_id_line_edit.setText(test_book_id_str)
-        
+
         fetch_data_button.click()
-        
+
         expected_status_message = "API Authentication Failed. Please check your Bearer Token."
         self.assertEqual(self.window.status_bar.currentMessage(), expected_status_message)
         mock_api_get_book_by_id.assert_called_once_with(int(test_book_id_str))
@@ -231,9 +232,9 @@ class TestMainWindow(unittest.TestCase):
         fetch_data_button = self.window.findChild(QPushButton, "fetchDataButton")
 
         book_id_line_edit.setText(test_book_id_str)
-        
+
         fetch_data_button.click()
-        
+
         expected_status_message = (
             "Network error. Unable to connect to Hardcover.app API. "
             "Please check your internet connection."
@@ -248,7 +249,7 @@ class TestMainWindow(unittest.TestCase):
         with an appropriate error message.
         """
         # Simulate ApiClient raising ApiProcessingError
-        test_book_id_str = "202" # Using a different ID for clarity
+        test_book_id_str = "202"  # Using a different ID for clarity
         error_message = "Simulated API response processing failure"
         mock_api_get_book_by_id.side_effect = ApiProcessingError(message=error_message)
 
@@ -256,15 +257,15 @@ class TestMainWindow(unittest.TestCase):
         fetch_data_button = self.window.findChild(QPushButton, "fetchDataButton")
 
         book_id_line_edit.setText(test_book_id_str)
-        
+
         # Mock the QMessageBox to prevent the dialog from showing
-        with patch('PyQt5.QtWidgets.QMessageBox.critical'):
+        with patch('PyQt6.QtWidgets.QMessageBox.critical'):
             fetch_data_button.click()
-        
+
         expected_status_message = "An unexpected API error occurred. See dialog for details."
         self.assertEqual(self.window.status_bar.currentMessage(), expected_status_message)
         mock_api_get_book_by_id.assert_called_once_with(int(test_book_id_str))
- 
+
     @patch.object(ApiClient, 'get_book_by_id')
     def test_fetch_data_success_populates_book_info_area(self, mock_api_get_book_by_id):
         """
@@ -286,7 +287,7 @@ class TestMainWindow(unittest.TestCase):
             "editions_count": 5,
             "default_audio_edition": {"id": "aud001", "edition_format": "Audiobook"},
             "default_cover_edition": {
-                "id": "cov001", 
+                "id": "cov001",
                 "edition_format": "Hardcover",
                 "image": {"url": "http://example.com/great_test_book_cover.jpg"}
             },
@@ -297,7 +298,7 @@ class TestMainWindow(unittest.TestCase):
 
         book_id_line_edit = self.window.findChild(QLineEdit, "bookIdLineEdit")
         fetch_data_button = self.window.findChild(QPushButton, "fetchDataButton")
-        
+
         # Ensure book_info_area is available for parentWidget checks
         self.window.book_info_area = self.window.findChild(QGroupBox, "bookInfoArea")
         self.assertIsNotNone(self.window.book_info_area, "bookInfoArea QGroupBox not found.")
@@ -322,8 +323,8 @@ class TestMainWindow(unittest.TestCase):
         self.assertIn("the-great-test-book-slug", self.window.book_slug_label.text())
         self.assertIn("href=", self.window.book_slug_label.text())  # Verify it's a link
         self.assertEqual(
-            self.window.book_slug_label.parentWidget(), 
-            self.window.book_info_area, 
+            self.window.book_slug_label.parentWidget(),
+            self.window.book_info_area,
             "Slug label not in book info area."
         )
 
@@ -331,39 +332,36 @@ class TestMainWindow(unittest.TestCase):
         # Assuming authors are joined by ", " in main.py
         self.assertIn("<span style='color:#999999;'>Authors: </span>", self.window.book_authors_label.text())
         self.assertIn(
-            "<span style='color:#e0e0e0;'>Author One, Author Two</span>", 
+            "<span style='color:#e0e0e0;'>Author One, Author Two</span>",
             self.window.book_authors_label.text()
         )
 
         self.assertIsNotNone(self.window.book_id_queried_label, "Book ID (queried) QLabel attribute not updated.")
         self.assertIn(
-            "<span style='color:#999999;'>Book ID (Queried): </span>", 
+            "<span style='color:#999999;'>Book ID (Queried): </span>",
             self.window.book_id_queried_label.text()
         )
-        self.assertIn("<span style='color:#e0e0e0;'>123</span>", self.window.book_id_queried_label.text()) # From input
+        self.assertIn("<span style='color:#e0e0e0;'>123</span>", self.window.book_id_queried_label.text())  # From input
 
         self.assertIsNotNone(self.window.book_total_editions_label, "Total editions QLabel attribute not updated.")
         self.assertIn("<span style='color:#999999;'>Total Editions: </span>", self.window.book_total_editions_label.text())
         self.assertIn("<span style='color:#e0e0e0;'>5</span>", self.window.book_total_editions_label.text())
 
-
         # Test for the new QLabel based description display
         self.assertIsNotNone(self.window.book_description_label, "Book description QLabel attribute not updated.")
-        
+
         full_mock_description = "A truly captivating description of testing."
-        MAX_DESC_CHARS = 500 # Must match the constant in main.py (imported or redefined)
-        
+        MAX_DESC_CHARS = 500  # Must match the constant in main.py (imported or redefined)
+
         if len(full_mock_description) > MAX_DESC_CHARS:
-            expected_display_text = f"Description: {full_mock_description[:MAX_DESC_CHARS]}..."
             expected_tooltip_text = full_mock_description
         else:
-            expected_display_text = f"Description: {full_mock_description}"
-            expected_tooltip_text = "" # Or full_mock_description if tooltip is always set
-            
+            expected_tooltip_text = ""  # Or full_mock_description if tooltip is always set
+
         self.assertIn("<span style='color:#999999;'>Description: </span>", self.window.book_description_label.text())
         self.assertIn(f"<span style='color:#e0e0e0;'>{full_mock_description}</span>", self.window.book_description_label.text())
         self.assertEqual(self.window.book_description_label.toolTip(), expected_tooltip_text)
-        
+
         self.assertIsNotNone(self.window.book_cover_label, "Book cover QLabel attribute not updated.")
         # This assumes book_cover_label displays the URL as text.
         self.assertIn("<span style='color:#999999;'>Cover URL: </span>", self.window.book_cover_label.text())
@@ -390,7 +388,6 @@ class TestMainWindow(unittest.TestCase):
         self.assertIn("Paperback (ID: phy001)", self.window.default_physical_label.text())
         self.assertIn("href=", self.window.default_physical_label.text())
 
-        
     @patch.object(ApiClient, 'get_book_by_id')
     def test_fetch_data_success_populates_editions_table(self, mock_api_get_book_by_id):
         """
@@ -459,9 +456,9 @@ class TestMainWindow(unittest.TestCase):
 
         # Expected column headers per spec (now includes Select column)
         expected_headers = [
-            "Select", "id", "score", "title", "subtitle", "Cover Image?", 
-            "isbn_10", "isbn_13", "asin", "Reading Format", "pages", 
-            "Duration", "edition_format", "edition_information", 
+            "Select", "id", "score", "title", "subtitle", "Cover Image?",
+            "isbn_10", "isbn_13", "asin", "Reading Format", "pages",
+            "Duration", "edition_format", "edition_information",
             "release_date", "Publisher", "Language", "Country"
         ]
         self.assertEqual(editions_table.columnCount(), len(expected_headers))
@@ -470,7 +467,7 @@ class TestMainWindow(unittest.TestCase):
             actual_header = editions_table.horizontalHeaderItem(i).text()
             actual_header_base = actual_header.replace(" ▲", "").replace(" ▼", "")
             self.assertEqual(actual_header_base, header)
-        
+
         self.assertEqual(editions_table.rowCount(), 2)
 
         # Check first row (should be sorted by score desc, so ed1 first)
@@ -502,7 +499,7 @@ class TestMainWindow(unittest.TestCase):
         self.assertEqual(editions_table.item(0, 17).text(), "United States")  # Country
 
         # Check second row
-        # ID column now uses ClickableLabel widget instead of QTableWidgetItem  
+        # ID column now uses ClickableLabel widget instead of QTableWidgetItem
         id_widget_2 = editions_table.cellWidget(1, 1)  # ID is now column 1 after Select
         if id_widget_2:
             # It's a ClickableLabel with clickable edition ID
@@ -531,11 +528,11 @@ class TestMainWindow(unittest.TestCase):
         # The table should be sorted by score descending by default
         self.assertEqual(editions_table.item(0, 2).text(), "95.5")  # Higher score first
         self.assertEqual(editions_table.item(1, 2).text(), "88.0")  # Lower score second
-        
+
         # Check tooltip for truncated text
-        self.assertEqual(editions_table.item(0, 3).toolTip(), 
+        self.assertEqual(editions_table.item(0, 3).toolTip(),
                          "First Edition with a very long title that should be truncated")
-        
+
         mock_api_get_book_by_id.assert_called_once_with(123)
 
     def test_initial_general_book_information_ui_elements_present_and_default(self):
@@ -557,7 +554,7 @@ class TestMainWindow(unittest.TestCase):
         self.assertIsInstance(self.window.book_slug_label, ClickableLabel)
         self.assertIn("<span style='color:#999999;'>Slug: </span>", self.window.book_slug_label.text())
         self.assertIn("<span style='color:#e0e0e0;'>Not Fetched</span>", self.window.book_slug_label.text())
-        self.assertEqual(self.window.book_slug_label.toolTip(), "") # No link initially
+        self.assertEqual(self.window.book_slug_label.toolTip(), "")  # No link initially
 
         self.assertIsNotNone(self.window.book_authors_label, "Book Authors QLabel not found.")
         self.assertIn("<span style='color:#999999;'>Authors: </span>", self.window.book_authors_label.text())
@@ -630,14 +627,14 @@ class TestMainWindow(unittest.TestCase):
         Test that "N/A" is displayed for fields that are null or missing in the API response.
         """
         mock_book_data_with_nulls = {
-            "id": "456", # Still need an ID for the book itself
+            "id": "456",  # Still need an ID for the book itself
             "title": "Book With Missing Info",
-            "slug": None, # Test None slug
-            "contributions": None, # Test None contributions
-            "description": None, # Test None description
-            "editions_count": None, # Test None editions_count
+            "slug": None,  # Test None slug
+            "contributions": None,  # Test None contributions
+            "description": None,  # Test None description
+            "editions_count": None,  # Test None editions_count
             "default_audio_edition": None,
-            "default_cover_edition": None, # This will also make cover URL N/A
+            "default_cover_edition": None,  # This will also make cover URL N/A
             "default_ebook_edition": None,
             "default_physical_edition": None
         }
@@ -651,7 +648,7 @@ class TestMainWindow(unittest.TestCase):
 
         # Check labels for "N/A"
         self.assertIn("<span style='color:#999999;'>Title: </span>", self.window.book_title_label.text())
-        self.assertIn("<span style='color:#e0e0e0;'>Book With Missing Info</span>", self.window.book_title_label.text()) # Title is present
+        self.assertIn("<span style='color:#e0e0e0;'>Book With Missing Info</span>", self.window.book_title_label.text())  # Title is present
 
         self.assertIn("<span style='color:#999999;'>Slug: </span>", self.window.book_slug_label.text())
         # N/A might be highlighted or not depending on context
@@ -660,11 +657,11 @@ class TestMainWindow(unittest.TestCase):
         # N/A might be highlighted or not depending on context
         self.assertIn("N/A</span>", self.window.book_authors_label.text())
         self.assertIn("<span style='color:#999999;'>Book ID (Queried): </span>", self.window.book_id_queried_label.text())
-        self.assertIn("<span style='color:#e0e0e0;'>456</span>", self.window.book_id_queried_label.text()) # From input
+        self.assertIn("<span style='color:#e0e0e0;'>456</span>", self.window.book_id_queried_label.text())  # From input
         self.assertIn("<span style='color:#999999;'>Total Editions: </span>", self.window.book_total_editions_label.text())
         # N/A might be highlighted or not depending on context
         self.assertIn("N/A</span>", self.window.book_total_editions_label.text())
-        
+
         # Description label
         self.assertIn("<span style='color:#999999;'>Description: </span>", self.window.book_description_label.text())
         # N/A might be highlighted or not depending on context
@@ -692,10 +689,10 @@ class TestMainWindow(unittest.TestCase):
 
         # Test that N/A labels are not clickable
         with patch('librarian_assistant.main.webbrowser.open') as mock_webbrowser_open_na:
-            QTest.mouseClick(self.window.book_slug_label, Qt.LeftButton) # Slug is None
+            QTest.mouseClick(self.window.book_slug_label, Qt.MouseButton.LeftButton)  # Slug is None
             mock_webbrowser_open_na.assert_not_called()
 
-            QTest.mouseClick(self.window.default_audio_label, Qt.LeftButton) # Default audio is None
+            QTest.mouseClick(self.window.default_audio_label, Qt.MouseButton.LeftButton)  # Default audio is None
             mock_webbrowser_open_na.assert_not_called()
             # ... (add similar checks for other default editions if they are None) ...
 
@@ -703,7 +700,7 @@ class TestMainWindow(unittest.TestCase):
         # even if data fields were null.
         expected_status_message = "Book data fetched successfully for ID 456."
         self.assertEqual(self.window.status_bar.currentMessage(), expected_status_message)
-    
+
     @patch.object(ApiClient, 'get_book_by_id')
     def test_editions_table_data_transformations(self, mock_api_get_book_by_id):
         """
@@ -756,17 +753,17 @@ class TestMainWindow(unittest.TestCase):
         fetch_data_button.click()
 
         editions_table = self.window.editions_table_widget
-        
+
         # Check E-Book format (column 9 after Select)
         self.assertEqual(editions_table.item(0, 9).text(), "E-Book")
         self.assertEqual(editions_table.item(0, 11).text(), "N/A")  # No audio duration
         self.assertEqual(editions_table.item(0, 14).text(), "N/A")  # Null date
-        
+
         # Check unknown reading format (should show raw ID)
         self.assertEqual(editions_table.item(1, 9).text(), "99")
         self.assertEqual(editions_table.item(1, 10).text(), "N/A")  # Null pages
         self.assertEqual(editions_table.item(1, 14).text(), "invalid-date")  # Invalid date kept as-is
-        
+
         # Check audiobook duration conversion
         self.assertEqual(editions_table.item(2, 9).text(), "Audiobook")
         self.assertEqual(editions_table.item(2, 11).text(), "12:41:18")  # 45678 seconds
@@ -837,11 +834,11 @@ class TestMainWindow(unittest.TestCase):
         fetch_data_button.click()
 
         editions_table = self.window.editions_table_widget
-        
+
         # Check that contributor columns were added
-        headers = [editions_table.horizontalHeaderItem(i).text() 
-                  for i in range(editions_table.columnCount())]
-        
+        headers = [editions_table.horizontalHeaderItem(i).text()
+                   for i in range(editions_table.columnCount())]
+
         # Should have Author (2), Narrator (1), and Translator (1) columns based on actual data
         self.assertIn("Author 1", headers)
         self.assertIn("Author 2", headers)  # Second Author in first edition
@@ -850,11 +847,11 @@ class TestMainWindow(unittest.TestCase):
         self.assertNotIn("Narrator 2", headers)  # Only 1 narrator in data
         self.assertIn("Translator 1", headers)
         self.assertNotIn("Translator 2", headers)  # Only 1 translator in data
-        
+
         # Should NOT have roles that aren't present
         self.assertNotIn("Illustrator 1", headers)
         self.assertNotIn("Editor 1", headers)
-        
+
         # Find column indices (strip sort indicators from headers)
         headers_base = [h.replace(" ▲", "").replace(" ▼", "") for h in headers]
         id_col = headers_base.index("id")
@@ -862,7 +859,7 @@ class TestMainWindow(unittest.TestCase):
         author2_col = headers_base.index("Author 2")
         narrator1_col = headers_base.index("Narrator 1")
         translator1_col = headers_base.index("Translator 1")
-        
+
         # Find which row has which edition (table is sorted by score desc)
         # Edition with score 100 should be first
         # ID column now uses ClickableLabel widget instead of QTableWidgetItem
@@ -877,19 +874,19 @@ class TestMainWindow(unittest.TestCase):
             else:
                 row_with_contributors = 1
         row_fewer_contributors = 1 - row_with_contributors
-        
+
         # Check edition with multiple contributors
         self.assertEqual(editions_table.item(row_with_contributors, author1_col).text(), "Primary Author")
         self.assertEqual(editions_table.item(row_with_contributors, author2_col).text(), "Second Author")
         self.assertEqual(editions_table.item(row_with_contributors, narrator1_col).text(), "The Narrator")
         self.assertEqual(editions_table.item(row_with_contributors, translator1_col).text(), "Translator One")
-        
+
         # Check edition with fewer contributors
         self.assertEqual(editions_table.item(row_fewer_contributors, author1_col).text(), "Solo Author")
         self.assertEqual(editions_table.item(row_fewer_contributors, author2_col).text(), "N/A")  # No second author
         self.assertEqual(editions_table.item(row_fewer_contributors, narrator1_col).text(), "N/A")  # No narrator
         self.assertEqual(editions_table.item(row_fewer_contributors, translator1_col).text(), "N/A")  # No translator
-    
+
     def test_process_contributor_data_parsing(self):
         """Test the _process_contributor_data method handles various contributor scenarios."""
         # Test data with various contributor scenarios
@@ -916,38 +913,38 @@ class TestMainWindow(unittest.TestCase):
                 'cached_contributors': []  # Edition with no contributors
             }
         ]
-        
+
         result = self.window._process_contributor_data(editions)
-        
+
         # Check active roles are in the correct order (predefined order maintained)
         expected_roles = ['Author', 'Illustrator', 'Editor', 'Narrator']  # Only roles that exist in data
         self.assertEqual(result['active_roles'], expected_roles)
-        
+
         # Check contributors by edition
         contributors = result['contributors_by_edition']
-        
+
         # Edition 1 checks
         self.assertIn('ed1', contributors)
         self.assertEqual(contributors['ed1']['Author'], ['Primary Author', 'Secondary Author'])
         self.assertEqual(contributors['ed1']['Narrator'], ['The Narrator'])
         self.assertEqual(contributors['ed1']['Editor'], ['The Editor'])
-        
+
         # Edition 2 checks
         self.assertIn('ed2', contributors)
         self.assertEqual(contributors['ed2']['Author'], ['Another Author'])
         self.assertEqual(contributors['ed2']['Illustrator'], ['Illustrator One', 'Illustrator Two'])
-        
+
         # Edition 3 checks
         self.assertIn('ed3', contributors)
         self.assertEqual(contributors['ed3'], {})  # No contributors
-        
+
         # Check max contributors per role
         max_contributors = result['max_contributors_per_role']
         self.assertEqual(max_contributors['Author'], 2)  # Ed1 has 2 authors
         self.assertEqual(max_contributors['Illustrator'], 2)  # Ed2 has 2 illustrators
         self.assertEqual(max_contributors['Editor'], 1)  # Ed1 has 1 editor
         self.assertEqual(max_contributors['Narrator'], 1)  # Ed1 has 1 narrator
-    
+
     @patch.object(ApiClient, 'get_book_by_id')
     def test_contributor_column_visibility(self, mock_api_get_book_by_id):
         """Test that only roles with contributors get columns created."""
@@ -985,8 +982,8 @@ class TestMainWindow(unittest.TestCase):
                                 {'author': {'name': 'Narrator One'}, 'contribution': 'Narrator'}
                             ]
                         },
-                        {
-                            'id': 'ed2', 
+                {
+                            'id': 'ed2',
                             'score': 90,
                             'title': 'Edition with only Author',
                             'subtitle': None,
@@ -1007,32 +1004,32 @@ class TestMainWindow(unittest.TestCase):
                                 {'author': {'name': 'Author Two'}, 'contribution': 'Author'}
                             ]
                         }
-                    ]
+            ]
         }
-        
+
         # Set up the mock return value
         mock_api_get_book_by_id.return_value = mock_response
-        
+
         # Mock the config manager to return a token
         with patch.object(self.window.config_manager, 'load_token', return_value='test_token'):
             self.window.book_id_line_edit.setText("12345")
             self.window.fetch_data_button.click()
             QApplication.processEvents()
-        
+
         # Check that only Author and Narrator columns exist
         editions_table = self.window.editions_table_widget
         self.assertGreater(editions_table.columnCount(), 0, "Table should have columns after fetch")
         headers = [editions_table.horizontalHeaderItem(i).text() for i in range(editions_table.columnCount())]
-        
+
         # Should have only Author 1 and Narrator 1 columns (based on test data)
         self.assertIn("Author 1", headers)
         self.assertIn("Narrator 1", headers)
-        
+
         # Should NOT have additional Author/Narrator columns beyond what's needed
         for i in range(2, 11):
             self.assertNotIn(f"Author {i}", headers)
             self.assertNotIn(f"Narrator {i}", headers)
-        
+
         # Should NOT have columns for roles with no contributors
         self.assertNotIn("Illustrator 1", headers)
         self.assertNotIn("Editor 1", headers)
@@ -1040,7 +1037,7 @@ class TestMainWindow(unittest.TestCase):
         self.assertNotIn("Foreword 1", headers)
         self.assertNotIn("Cover Artist 1", headers)
         self.assertNotIn("Other 1", headers)
-    
+
     @patch.object(ApiClient, 'get_book_by_id')
     def test_contributor_null_handling(self, mock_api_get_book_by_id):
         """Test handling of null contribution field (primary author)."""
@@ -1078,28 +1075,28 @@ class TestMainWindow(unittest.TestCase):
                                 {'author': {'name': 'Third Author'}, 'contribution': None}
                             ]
                         }
-                    ]
+            ]
         }
-        
+
         # Set up the mock return value
         mock_api_get_book_by_id.return_value = mock_response
-        
+
         # Mock the config manager to return a token
         with patch.object(self.window.config_manager, 'load_token', return_value='test_token'):
             self.window.book_id_line_edit.setText("12345")
             self.window.fetch_data_button.click()
             QApplication.processEvents()
-        
+
         editions_table = self.window.editions_table_widget
         self.assertGreater(editions_table.columnCount(), 0, "Table should have columns after fetch")
         headers = [editions_table.horizontalHeaderItem(i).text() for i in range(editions_table.columnCount())]
-        
+
         # Find Author columns (strip sort indicators)
         headers_base = [h.replace(" ▲", "").replace(" ▼", "") for h in headers]
         author1_col = headers_base.index("Author 1")
         author2_col = headers_base.index("Author 2")
         author3_col = headers_base.index("Author 3")
-        
+
         # First null contribution should be Author 1, then Secondary Author, then Third Author with null
         self.assertEqual(editions_table.item(0, author1_col).text(), "Primary Author")
         self.assertEqual(editions_table.item(0, author2_col).text(), "Secondary Author")
@@ -1110,217 +1107,217 @@ class TestMainWindow(unittest.TestCase):
         # Check that both group boxes are checkable
         self.assertTrue(self.window.api_input_area.isCheckable())
         self.assertTrue(self.window.book_info_area.isCheckable())
-        
+
         # Check that both start expanded with down arrows
         self.assertTrue(self.window.api_input_area.isChecked())
         self.assertTrue(self.window.book_info_area.isChecked())
         self.assertIn("▼", self.window.api_input_area.title())
         self.assertIn("▼", self.window.book_info_area.title())
-        
+
         # Test that the handlers exist
         self.assertTrue(hasattr(self.window, '_on_api_input_toggled'))
         self.assertTrue(hasattr(self.window, '_on_book_info_toggled'))
-        
+
         # Test collapsing API input area
         initial_height = self.window.api_input_area.maximumHeight()
         self.window.api_input_area.setChecked(False)
         # Manually trigger the toggle handler since setChecked doesn't emit toggled
         self.window._on_api_input_toggled(False)
         QApplication.processEvents()
-        
+
         # Check that the height is limited and arrow changed
         self.assertEqual(self.window.api_input_area.maximumHeight(), 30)
         self.assertLess(self.window.api_input_area.maximumHeight(), initial_height)
         self.assertIn("▶", self.window.api_input_area.title())
         self.assertNotIn("▼", self.window.api_input_area.title())
-        
+
         # Test expanding API input area
         self.window.api_input_area.setChecked(True)
         self.window._on_api_input_toggled(True)
         QApplication.processEvents()
-        
+
         # Check that the height is reset and arrow changed back
         self.assertEqual(self.window.api_input_area.maximumHeight(), 16777215)
         self.assertIn("▼", self.window.api_input_area.title())
         self.assertNotIn("▶", self.window.api_input_area.title())
-        
+
         # Test the same for book info area
         initial_info_height = self.window.book_info_area.maximumHeight()
         self.window.book_info_area.setChecked(False)
         self.window._on_book_info_toggled(False)
         QApplication.processEvents()
-        
+
         # Check collapsed state with arrow
         self.assertEqual(self.window.book_info_area.maximumHeight(), 30)
         self.assertLess(self.window.book_info_area.maximumHeight(), initial_info_height)
         self.assertIn("▶", self.window.book_info_area.title())
-        
+
         # Check expanded state with arrow
         self.window.book_info_area.setChecked(True)
         self.window._on_book_info_toggled(True)
         QApplication.processEvents()
-        
+
         self.assertEqual(self.window.book_info_area.maximumHeight(), 16777215)
         self.assertIn("▼", self.window.book_info_area.title())
-    
+
     def test_configure_columns_button_exists(self):
         """Test that Configure Columns button exists."""
         # Check button exists
         self.assertIsNotNone(self.window.configure_columns_button)
         self.assertEqual(self.window.configure_columns_button.text(), "Configure Columns")
-        
+
         # Check it's in the editions table area
         self.assertEqual(self.window.configure_columns_button.parent(), self.window.editions_table_area)
-    
+
     @patch('librarian_assistant.main.ColumnConfigDialog')
     def test_configure_columns_no_data(self, mock_dialog_class):
         """Test configure columns with no data loaded."""
         # Click configure columns button
         self.window.configure_columns_button.click()
-        
+
         # Should show status message
-        self.assertEqual(self.window.status_bar.currentMessage(), 
-                        "No data loaded. Fetch book data first.")
-        
+        self.assertEqual(self.window.status_bar.currentMessage(),
+                         "No data loaded. Fetch book data first.")
+
         # Dialog should not be created
         mock_dialog_class.assert_not_called()
-    
+
     @patch('librarian_assistant.main.ColumnConfigDialog')
     def test_configure_columns_with_data(self, mock_dialog_class):
         """Test configure columns after data is loaded."""
         # Mock dialog instance
         mock_dialog = Mock()
         mock_dialog_class.return_value = mock_dialog
-        
+
         # Simulate having loaded data
         self.window.all_column_names = ["id", "title", "author", "isbn"]
         self.window.visible_column_names = ["id", "title", "author"]
-        
+
         # Click configure columns button
         self.window.configure_columns_button.click()
-        
+
         # Dialog should be created with current configuration
         mock_dialog_class.assert_called_once_with(
             ["id", "title", "author", "isbn"],
             ["id", "title", "author"],
             self.window
         )
-        
+
         # Signal should be connected
         mock_dialog.columns_configured.connect.assert_called_once()
-        
+
         # Dialog should be shown
-        mock_dialog.exec_.assert_called_once()
-    
+        mock_dialog.exec.assert_called_once()
+
     def test_table_column_resizing_enabled(self):
         """Test that table columns can be resized."""
         # Add some columns first
         self.window.editions_table_widget.setColumnCount(3)
         self.window.editions_table_widget.setHorizontalHeaderLabels(["Col1", "Col2", "Col3"])
-        
+
         # Check resize mode is interactive
         header = self.window.editions_table_widget.horizontalHeader()
-        
+
         # Check minimum section size is set
         self.assertEqual(header.minimumSectionSize(), 50)
-        
+
         # Check last section stretches
         self.assertTrue(header.stretchLastSection())
-        
+
         # Test that we can set column width
         original_width = header.sectionSize(0)
         new_width = 200
         self.window.editions_table_widget.setColumnWidth(0, new_width)
         self.assertEqual(header.sectionSize(0), new_width)
         self.assertNotEqual(original_width, new_width)
-    
+
     def test_filter_button_exists(self):
         """Test that Advanced Filter button exists."""
         # Check button exists
         self.assertIsNotNone(self.window.filter_button)
         self.assertEqual(self.window.filter_button.text(), "Advanced Filter")
-        
+
         # Check it's in the editions table area
         self.assertEqual(self.window.filter_button.parent(), self.window.editions_table_area)
-    
+
     @patch('librarian_assistant.main.FilterDialog')
     def test_filter_no_data(self, mock_dialog_class):
         """Test filter with no data loaded."""
         # Click filter button
         self.window.filter_button.click()
-        
+
         # Should show status message
-        self.assertEqual(self.window.status_bar.currentMessage(), 
-                        "No data loaded. Fetch book data first.")
-        
+        self.assertEqual(self.window.status_bar.currentMessage(),
+                         "No data loaded. Fetch book data first.")
+
         # Dialog should not be created
         mock_dialog_class.assert_not_called()
-    
+
     def test_filter_operator_text(self):
         """Test text filter operators."""
         # Test Contains
         self.assertTrue(self.window._apply_filter_operator("Harry Potter", "Contains", "Harry", "title"))
         self.assertFalse(self.window._apply_filter_operator("Harry Potter", "Contains", "Ron", "title"))
-        
+
         # Test Equals
         self.assertTrue(self.window._apply_filter_operator("Test", "Equals", "test", "title"))
         self.assertFalse(self.window._apply_filter_operator("Test", "Equals", "Testing", "title"))
-        
+
         # Test Starts with
         self.assertTrue(self.window._apply_filter_operator("Harry Potter", "Starts with", "Harry", "title"))
         self.assertFalse(self.window._apply_filter_operator("Harry Potter", "Starts with", "Potter", "title"))
-        
+
         # Test Is empty
         self.assertTrue(self.window._apply_filter_operator("", "Is empty", None, "title"))
         self.assertTrue(self.window._apply_filter_operator("N/A", "Is empty", None, "title"))
         self.assertFalse(self.window._apply_filter_operator("Test", "Is empty", None, "title"))
-    
+
     def test_filter_operator_numeric(self):
         """Test numeric filter operators."""
         # Test equals
         self.assertTrue(self.window._apply_filter_operator("4.5", "=", "4.5", "score"))
         self.assertFalse(self.window._apply_filter_operator("4.5", "=", "4.0", "score"))
-        
+
         # Test greater than
         self.assertTrue(self.window._apply_filter_operator("4.5", ">", "4.0", "score"))
         self.assertFalse(self.window._apply_filter_operator("4.5", ">", "5.0", "score"))
-        
+
         # Test less than or equal
         self.assertTrue(self.window._apply_filter_operator("4.5", "<=", "4.5", "score"))
         self.assertTrue(self.window._apply_filter_operator("4.5", "<=", "5.0", "score"))
         self.assertFalse(self.window._apply_filter_operator("4.5", "<=", "4.0", "score"))
-    
+
     def test_filter_operator_date(self):
         """Test date filter operators."""
         # Test Is on
         self.assertTrue(self.window._apply_filter_operator("01/15/2023", "Is on", "2023-01-15", "release_date"))
         self.assertFalse(self.window._apply_filter_operator("01/15/2023", "Is on", "2023-01-16", "release_date"))
-        
+
         # Test Is before
         self.assertTrue(self.window._apply_filter_operator("01/15/2023", "Is before", "2023-01-20", "release_date"))
         self.assertFalse(self.window._apply_filter_operator("01/15/2023", "Is before", "2023-01-10", "release_date"))
-        
+
         # Test Is between
         filter_value = {'start': '2023-01-01', 'end': '2023-01-31'}
         self.assertTrue(self.window._apply_filter_operator("01/15/2023", "Is between", filter_value, "release_date"))
-        
+
         filter_value = {'start': '2023-02-01', 'end': '2023-02-28'}
         self.assertFalse(self.window._apply_filter_operator("01/15/2023", "Is between", filter_value, "release_date"))
-    
+
     def test_filter_operator_special(self):
         """Test special filter operators."""
         # Test Cover Image
         self.assertTrue(self.window._apply_filter_operator("Yes", 'Is "Yes"', None, "Cover Image?"))
         self.assertFalse(self.window._apply_filter_operator("No", 'Is "Yes"', None, "Cover Image?"))
-        
+
         # Test Is N/A
         self.assertTrue(self.window._apply_filter_operator("N/A", "Is N/A", None, "pages"))
         self.assertFalse(self.window._apply_filter_operator("100", "Is N/A", None, "pages"))
-        
+
         # Test Reading Format
         self.assertTrue(self.window._apply_filter_operator("Audiobook", "Is", "Audiobook", "Reading Format"))
         self.assertFalse(self.window._apply_filter_operator("Audiobook", "Is", "E-Book", "Reading Format"))
-    
+
     def test_row_matches_filters_and_logic(self):
         """Test row matching with AND logic."""
         # Set up a simple table
@@ -1329,21 +1326,21 @@ class TestMainWindow(unittest.TestCase):
         self.window.editions_table_widget.setHorizontalHeaderLabels(['title', 'score'])
         self.window.editions_table_widget.setItem(0, 0, QTableWidgetItem("Harry Potter"))
         self.window.editions_table_widget.setItem(0, 1, QTableWidgetItem("4.5"))
-        
+
         # Test AND logic - both match
         filters = [
             {'column': 'title', 'operator': 'Contains', 'value': 'Harry'},
             {'column': 'score', 'operator': '>', 'value': '4.0'}
         ]
         self.assertTrue(self.window._row_matches_filters(0, filters, 'AND'))
-        
+
         # Test AND logic - one doesn't match
         filters = [
             {'column': 'title', 'operator': 'Contains', 'value': 'Harry'},
             {'column': 'score', 'operator': '>', 'value': '5.0'}
         ]
         self.assertFalse(self.window._row_matches_filters(0, filters, 'AND'))
-    
+
     def test_row_matches_filters_or_logic(self):
         """Test row matching with OR logic."""
         # Set up a simple table
@@ -1352,14 +1349,14 @@ class TestMainWindow(unittest.TestCase):
         self.window.editions_table_widget.setHorizontalHeaderLabels(['title', 'score'])
         self.window.editions_table_widget.setItem(0, 0, QTableWidgetItem("Harry Potter"))
         self.window.editions_table_widget.setItem(0, 1, QTableWidgetItem("4.5"))
-        
+
         # Test OR logic - one matches
         filters = [
             {'column': 'title', 'operator': 'Contains', 'value': 'Ron'},
             {'column': 'score', 'operator': '>', 'value': '4.0'}
         ]
         self.assertTrue(self.window._row_matches_filters(0, filters, 'OR'))
-        
+
         # Test OR logic - none match
         filters = [
             {'column': 'title', 'operator': 'Contains', 'value': 'Ron'},
@@ -1443,7 +1440,7 @@ class TestMainWindow(unittest.TestCase):
         # N/A might be highlighted or not depending on context
         self.assertIn("N/A</span>", self.window.default_physical_label.text())
         self.assertFalse("href=" in self.window.default_physical_label.text())
-    
+
     @patch.object(ApiClient, 'get_book_by_id')
     def test_multi_column_sorting_with_indicators(self, mock_api_get_book_by_id):
         """Test that table supports multi-column sorting with visual indicators."""
@@ -1461,7 +1458,7 @@ class TestMainWindow(unittest.TestCase):
                     "release_date": "2023-01-15",
                 },
                 {
-                    "id": "ed2", 
+                    "id": "ed2",
                     "score": 88,
                     "title": "Second Edition",
                     "pages": 250,
@@ -1470,20 +1467,20 @@ class TestMainWindow(unittest.TestCase):
                 {
                     "id": "ed3",
                     "score": 92,
-                    "title": "Third Edition", 
+                    "title": "Third Edition",
                     "pages": 275,
                     "release_date": "2023-03-10",
                 }
             ]
         }
         mock_api_get_book_by_id.return_value = mock_book_data
-        
+
         # Fetch data
         self.window.book_id_line_edit.setText("123")
         self.window.fetch_data_button.click()
-        
+
         table = self.window.editions_table_widget
-        
+
         # Check default sort indicator on score column
         score_col = None
         for i in range(table.columnCount()):
@@ -1492,9 +1489,9 @@ class TestMainWindow(unittest.TestCase):
                 score_col = i
                 self.assertIn("▼", header.text(), "Score column should show descending indicator")
                 break
-        
+
         self.assertIsNotNone(score_col, "Score column not found")
-        
+
         # Find pages column
         pages_col = None
         for i in range(table.columnCount()):
@@ -1502,37 +1499,37 @@ class TestMainWindow(unittest.TestCase):
             if header and header.text() == "pages":
                 pages_col = i
                 break
-        
+
         self.assertIsNotNone(pages_col, "Pages column not found")
-        
+
         # Simulate clicking pages column header
         table._on_header_clicked(pages_col)
-        
+
         # Check ascending indicator on pages column
         pages_header = table.horizontalHeaderItem(pages_col)
         self.assertIn("▲", pages_header.text(), "Pages column should show ascending indicator")
-        
+
         # Check score column indicator is cleared
         score_header = table.horizontalHeaderItem(score_col)
         self.assertNotIn("▼", score_header.text(), "Score column indicator should be cleared")
         self.assertNotIn("▲", score_header.text(), "Score column indicator should be cleared")
-        
+
         # Click pages column again for descending
         table._on_header_clicked(pages_col)
         pages_header = table.horizontalHeaderItem(pages_col)
         self.assertIn("▼", pages_header.text(), "Pages column should show descending indicator")
-        
+
         # Click pages column third time to clear sort
         table._on_header_clicked(pages_col)
         pages_header = table.horizontalHeaderItem(pages_col)
         self.assertNotIn("▲", pages_header.text(), "Pages column indicator should be cleared")
         self.assertNotIn("▼", pages_header.text(), "Pages column indicator should be cleared")
-        
+
         # Verify default sort is restored (score descending)
         score_header = table.horizontalHeaderItem(score_col)
         # Note: The default sort restore doesn't update the indicator in current implementation
         # This could be enhanced if needed
-    
+
     @patch.object(ApiClient, 'get_book_by_id')
     def test_numeric_column_sorting(self, mock_api_get_book_by_id):
         """Test that numeric columns (score, pages) sort numerically not alphabetically."""
@@ -1549,13 +1546,13 @@ class TestMainWindow(unittest.TestCase):
             ]
         }
         mock_api_get_book_by_id.return_value = mock_book_data
-        
+
         # Fetch data
         self.window.book_id_line_edit.setText("123")
         self.window.fetch_data_button.click()
-        
+
         table = self.window.editions_table_widget
-        
+
         # Find score and pages columns
         score_col = None
         pages_col = None
@@ -1570,11 +1567,11 @@ class TestMainWindow(unittest.TestCase):
                     pages_col = i
                 elif header_text == "id":
                     id_col = i
-        
+
         self.assertIsNotNone(score_col)
         self.assertIsNotNone(pages_col)
         self.assertIsNotNone(id_col)
-        
+
         # Check default sort (score descending) - should be 100, 95.5, 88, 9
         # ID column now uses ClickableLabel widget instead of QTableWidgetItem
         def get_id_text(row):
@@ -1585,41 +1582,41 @@ class TestMainWindow(unittest.TestCase):
                 # Fallback to QTableWidgetItem for N/A values
                 item = table.item(row, id_col)
                 return item.text() if item else "N/A"
-        
+
         self.assertIn("ed1", get_id_text(0))  # score 100
         self.assertIn("ed2", get_id_text(1))  # score 95.5
         self.assertIn("ed4", get_id_text(2))  # score 88
         self.assertIn("ed3", get_id_text(3))  # score 9
-        
+
         # Verify score values are correct
         self.assertEqual(table.item(0, score_col).text(), "100")
         self.assertEqual(table.item(1, score_col).text(), "95.5")
         self.assertEqual(table.item(2, score_col).text(), "88")
         self.assertEqual(table.item(3, score_col).text(), "9")
-        
+
         # Check initial sort state
-        self.assertEqual(table.column_sort_order.get(score_col), Qt.DescendingOrder)
-        
+        self.assertEqual(table.column_sort_order.get(score_col), Qt.SortOrder.DescendingOrder)
+
         # First click on score column clears sort (goes to None/default)
         table._on_header_clicked(score_col)
         self.assertEqual(table.column_sort_order.get(score_col), None)
-        
+
         # Second click on score column sorts ascending - should be 9, 88, 95.5, 100
         table._on_header_clicked(score_col)
-        self.assertEqual(table.column_sort_order.get(score_col), Qt.AscendingOrder)
-        
+        self.assertEqual(table.column_sort_order.get(score_col), Qt.SortOrder.AscendingOrder)
+
         self.assertIn("ed3", get_id_text(0))  # score 9
         self.assertIn("ed4", get_id_text(1))  # score 88
         self.assertIn("ed2", get_id_text(2))  # score 95.5
         self.assertIn("ed1", get_id_text(3))  # score 100
-        
+
         # Click pages column to sort ascending - should be 50, 90, 200, 1000
         table._on_header_clicked(pages_col)
         self.assertIn("ed4", get_id_text(0))  # pages 50
         self.assertIn("ed1", get_id_text(1))  # pages 90
         self.assertIn("ed2", get_id_text(2))  # pages 200
         self.assertIn("ed3", get_id_text(3))  # pages 1000
-        
+
         # Click pages column again for descending - should be 1000, 200, 90, 50
         table._on_header_clicked(pages_col)
         self.assertIn("ed3", get_id_text(0))  # pages 1000
